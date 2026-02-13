@@ -4,7 +4,6 @@ use winit::{event_loop::EventLoop, window::WindowAttributes};
 
 use crate::app::{App, Meta};
 mod app;
-mod embed;
 fn main() {
     let mut attr = WindowAttributes::default();
     attr = attr.with_decorations(false);

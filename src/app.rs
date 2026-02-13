@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{from_str, to_string};
 use std::{
     borrow::Cow,
-    ffi::{OsStr, OsString},
+    env,
     fmt::Debug,
-    fs::{self},
+    fs::{self, read},
     io::{BufRead, BufReader, ErrorKind},
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -18,29 +18,67 @@ use winit::{
 };
 use wry::{
     WebView, WebViewBuilder,
+    cookie::time::macros::utc_datetime,
     http::{Request, Response, StatusCode},
 };
-
-use crate::embed::{html, js};
 
 const URL: &'static str = "scod://index.html";
 const HEAD: &'static str = "scod";
 fn protocol(_url: &str, req: Request<Vec<u8>>) -> Response<Cow<'static, [u8]>> {
     let uri = req.uri();
-    return match uri.path() {
-        "/" | "/index.html" => Response::builder()
-            .status(StatusCode::OK)
-            .header("Content-Type", "text/html")
-            .body(Cow::Borrowed(html::embed().as_bytes()))
-            .unwrap(),
-        "/index.js" => Response::builder()
-            .status(StatusCode::OK)
-            .header("Content-Type", "application/javascript")
-            .body(Cow::Borrowed(js::embed().as_bytes()))
-            .unwrap(),
-        _ => Response::default(),
+
+    let exe = env::current_exe().unwrap();
+    let mut path = PathBuf::from(exe.parent().unwrap());
+    let res = match uri.path() {
+        "/" => {
+            path.push("index.html");
+            match read(path) {
+                Ok(html) => Response::builder()
+                    .status(StatusCode::OK)
+                    .header("Content-Type", "text/html")
+                    .body(Cow::Owned(html))
+                    .unwrap(),
+                Err(_) => Response::default(),
+            }
+        }
+        _ => {
+            uri.path().split("/").for_each(|s| {
+                path.push(s);
+            });
+            match path.extension() {
+                Some(ext) => {
+                    let mime = mime_from_extension(ext.to_str().unwrap());
+                    match read(path) {
+                        Ok(b) => Response::builder()
+                            .status(StatusCode::OK)
+                            .header("Content-Type", mime)
+                            .body(Cow::Owned(b))
+                            .unwrap(),
+                        Err(_) => Response::default(),
+                    }
+                }
+                None => Response::default(),
+            }
+        }
     };
-    // Response::default()
+    res
+}
+
+fn mime_from_extension(ext: &str) -> &'static str {
+    match ext {
+        "html" => "text/html",
+        "js" | "mjs" => "application/javascript",
+        "css" => "text/css",
+        "json" => "application/json",
+        "wasm" => "application/wasm",
+        "svg" => "image/svg+xml",
+        "png" => "image/png",
+        "ttf" => "font/ttf",
+        "gif" => "image/gf",
+        "ico" => "image/x-icon",
+        "jpg" | "jpeg" => "image/jpeg",
+        _ => "application/octet-stream",
+    }
 }
 
 #[derive(Deserialize, Serialize)]

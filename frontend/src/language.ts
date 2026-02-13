@@ -4,6 +4,8 @@ export type Ext = {
     [key: string]: string
 }
 
+
+
 export const Ext: Ext = {
     "rs": "rust",
     "c": "c",
@@ -12,6 +14,32 @@ export const Ext: Ext = {
     "json": "json",
     "toml": "toml"
 }
+
+
+// export function setup_worker() {
+//     self.MonacoEnvironment = {
+//         getWorker(_: any, label: string) {
+//             switch (label) {
+//                 case "typescript":
+//                 case "javascript":
+//                     return new TsWorker();
+//                 case "json":
+//                     return new JsonWorker();
+//                 case "css":
+//                     return new CssWorker();
+//                 case "html":
+//                     return new HtmlWorker();
+//                 // case "rust":
+//                 //     return new RustWorker();
+//                 // case "markdown":
+//                 //     return new MarkdownWorker()
+//                 default:
+//                     return new EditorWorker();
+//             }
+//         }
+//     }
+
+// }
 
 
 export function setup_highlighter() {

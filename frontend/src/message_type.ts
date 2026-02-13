@@ -57,11 +57,42 @@ export type Local =
         action: "META", for: Meta
     }
 
-export type Meta = "sb" | "cb"
+export type Meta =
+    /// Perform Write operation, basically (p)ushing (e)dit the file
+    | { action: "pe" }
+    /// Closing the buffer
+    | { action: "bc" }
+    /// to for To. :to 1 is how you use it. it basically move cursor to that line 
+    | {
+        action: "to",
+        arg: number
+    }
+    /// jump the cursor into the relative position with your arg
+    /// like :jm 10 or :jm -10
+    | {
+        action: "jm",
+        arg: number
+    }
+    /// (W)atch the (f)ile for any change and refresh the buffer with that change
+    /// still not implemented. idk if want to honestly...
+    | {
+        action: "wf"
+    }
 
-export type Widget = "EDITOR" | "COMMAND" | "SHELL"
+export type Widget = "EDITOR" | "COMMAND"
 
 export type Channel = (message: Message) => void
+
+export type Buff = {
+    active_buffer: [{
+        path: string,
+        cursor: {
+            line: number,
+            column: number
+        }
+        watched: boolean,
+    }]
+}
 
 export function send(message: Message) {
     window.ipc.postMessage(JSON.stringify(message))

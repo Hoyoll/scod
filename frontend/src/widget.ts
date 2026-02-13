@@ -7,11 +7,11 @@ type Cmd = "/" | "$" | ":"
 
 export class Command {
     private buffer: HTMLInputElement
-    private wrapper: HTMLElement
+    // private wrapper: HTMLElement
     private channel: Channel
     constructor(channel: Channel) {
         this.channel = channel
-        this.wrapper = document.querySelector<HTMLElement>(".widget-wrapper")!
+        // document.querySelector<HTMLElement>(".widget-wrapper")!
         this.buffer = document.querySelector<HTMLInputElement>(".command-buffer")!
 
         this.buffer.addEventListener("keydown", (key) => {
@@ -35,34 +35,62 @@ export class Command {
                         })
                         break
                     case ":":
-                        this.channel({
-                            tag: "LOCAL",
-                            payload: {
-                                action: "META", for: rest.join("").trim() as Meta
-                            }
-                        })
-                        // console.log("TO-DO!")
-                        break
+                        let [command, args] = rest.join("").trim().split(" ")
+                        switch (command as Meta["action"]) {
+                            case "pe":
+                                this.channel({
+                                    tag: "LOCAL",
+                                    payload: {
+                                        action: "META", for: {
+                                            action: "pe"
+                                        }
+                                    }
+                                })
+                                break
+                            case "bc":
+                                this.channel({
+                                    tag: "LOCAL",
+                                    payload: {
+                                        action: "META", for: {
+                                            action: "bc"
+                                        }
+                                    }
+                                })
+                                break
+                            case "to":
+                                this.channel({
+                                    tag: "LOCAL",
+                                    payload: {
+                                        action: "META", for: {
+                                            action: "to",
+                                            arg: parseInt(args)
+                                        }
+                                    }
+                                })
+                                break
+                            case "jm":
+
+                                this.channel({
+                                    tag: "LOCAL",
+                                    payload: {
+                                        action: "META", for: {
+                                            action: "jm",
+                                            arg: parseInt(args)
+                                        }
+                                    }
+                                })
+                                break
+                            case "wf":
+                                break
+                        }
                 }
             }
         })
     }
 
     public focus() {
-        // if (!this.buffer.classList.contains("visible")) {
-        //     this.buffer.classList.add("visible")
-        // }
         this.buffer.focus()
     }
-
-    // public close() {
-    //     this.wrapper.classList.remove("visible")
-    //     this.channel({
-    //         tag: "LOCAL", payload: {
-    //             action: "FOCUS", for: "EDITOR"
-    //         }
-    //     })
-    // }
 
     getId(): string {
         return "scod.command"
@@ -73,8 +101,6 @@ export class Command {
     }
 
     getPosition(): editor.IOverlayWidgetPosition | null {
-
-        // return null
         return {
             preference: editor.OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
         }

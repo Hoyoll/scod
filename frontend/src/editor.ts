@@ -1,14 +1,9 @@
 import { editor, KeyCode, KeyMod, Uri } from "monaco-editor"
 import { Ext } from "./language"
+import { MANUAL } from "./man"
 import { type Message } from "./message_type"
 import { Command } from "./widget"
 
-type Option<T> = T | null
-type Buff = {
-    [key: string]: {
-        saved: boolean
-    }
-}
 
 type Result<T, A> = {
     ok: (value: T) => void
@@ -16,35 +11,23 @@ type Result<T, A> = {
 }
 
 
-// interface Result<T> {
-//     match<A>(handlers: {
-//         ok: (value: T) => A,
-//         err: () => A
-//     }): A
-// }
-
-// class Result<T> implements Result<T> {
-
-//     match<A>(handlers: { ok: (value: T) => A; err: () => A }): A {
-
-//     }
-// }
-
 
 class Buffer {
-    private shell: editor.ITextModel
-    private fallback: editor.ITextModel
-    constructor() {
-        this.shell = editor.createModel("", "markdown", Uri.file("shell.md"))
-        this.fallback = editor.createModel("", "markdown", Uri.file("fallback.md"))
-    }
-
     get_shell(): editor.ITextModel {
-        return this.shell
+        let model = editor.getModel(Uri.file("shell.md"))
+        if (!model) {
+
+            return editor.createModel(``, "markdown", Uri.file("shell.md"))
+        }
+        return model
     }
 
-    get_fallback(): editor.ITextModel {
-        return this.fallback
+    get_man(): editor.ITextModel {
+        let model = editor.getModel(Uri.file("man.md"))
+        if (!model) {
+            return editor.createModel(MANUAL, "markdown", Uri.file("man.md"))
+        }
+        return model
     }
 
     next() {
@@ -95,7 +78,7 @@ export class Editor {
             mouseWheelZoom: true,
             fontFamily: 'Fira Code',
             fontLigatures: true,
-            scrollBeyondLastLine: false,
+            // scrollBeyondLastLine: false,
             wordWrap: "off",
             scrollbar: {
                 verticalScrollbarSize: 0,
@@ -122,7 +105,7 @@ export class Editor {
             snippetSuggestions: "none"
 
         })
-        this.editor.setModel(this.buffer.get_fallback())
+        this.editor.setModel(this.buffer.get_man())
         this.setup_widget()
         // this.editor.setModel(null)
         this.receive({
@@ -226,27 +209,23 @@ export class Editor {
                             case "COMMAND":
                                 this.command.focus()
                                 break
-                            case "SHELL":
-                                break
                         }
                         break
                     case "CLOSE":
                         switch (message.payload.for) {
                             case "EDITOR":
                                 let m = this.editor.getModel()
-                                this.editor.setModel(this.buffer.get_fallback())
+                                this.editor.setModel(this.buffer.get_man())
                                 m?.dispose()
                                 break
                             case "COMMAND":
                                 this.editor.focus()
                                 break
-                            case "SHELL":
-                                break
                         }
                         break
                     case "META":
-                        switch (message.payload.for) {
-                            case "sb":
+                        switch (message.payload.for.action) {
+                            case "pe":
                                 let model = this.editor.getModel()
                                 if (!model) {
                                     return
@@ -262,12 +241,37 @@ export class Editor {
                                 })
 
                                 break
-                            case "cb":
+                            case "bc":
                                 this.receive({
                                     tag: "LOCAL", payload: {
                                         for: "EDITOR", action: "CLOSE"
                                     }
                                 })
+                                break
+                            case "to":
+                                let pos = this.editor.getPosition()!
+                                this.editor.setPosition({
+                                    lineNumber: message.payload.for.arg,
+                                    column: pos.column
+                                })
+                                this.editor.revealPosition({
+                                    lineNumber: message.payload.for.arg,
+                                    column: pos.column
+                                })
+                                break
+                            case "jm":
+                                let p = this.editor.getPosition()!
+                                let new_pos = p.lineNumber + message.payload.for.arg;
+                                this.editor.setPosition({
+                                    lineNumber: new_pos,
+                                    column: p.column
+                                })
+                                this.editor.revealPosition({
+                                    lineNumber: new_pos,
+                                    column: p.column
+                                })
+                                break
+                            case "wf":
                                 break
                         }
                         break
@@ -276,6 +280,45 @@ export class Editor {
     }
 
     private setup_command() {
+        editor.addCommand({
+            id: "jump.up",
+            run: () => {
+                this.receive({
+                    tag: "LOCAL", payload: {
+                        action: "META", for: {
+                            action: "jm", arg: -5
+                        }
+                    }
+                })
+            }
+        })
+
+        editor.addKeybindingRule({
+            keybinding: KeyMod.Alt | KeyCode.KeyW,
+            command: "jump.up"
+        })
+
+
+        editor.addCommand({
+            id: "jump.down",
+            run: () => {
+                // let pos = this.editor.getPosition()!
+                this.receive({
+                    tag: "LOCAL", payload: {
+                        action: "META", for: {
+                            action: "jm", arg: 5
+                        }
+                    }
+                })
+            }
+        })
+
+
+        editor.addKeybindingRule({
+            keybinding: KeyMod.Alt | KeyCode.KeyS,
+            command: "jump.down"
+        })
+
         editor.addCommand({
             id: "editor.focus",
             run: () => {
@@ -359,5 +402,21 @@ export class Editor {
             command: "zoom-out",
         })
 
+        editor.addCommand({
+            id: 'close.buffer',
+            run: () => {
+                this.receive({
+                    tag: "LOCAL", payload: {
+                        for: "EDITOR",
+                        action: "CLOSE"
+                    }
+                })
+            }
+        })
+
+        editor.addKeybindingRule({
+            keybinding: KeyMod.CtrlCmd | KeyCode.KeyW,
+            command: 'close.buffer'
+        })
     }
 }
