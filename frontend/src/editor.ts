@@ -11,7 +11,6 @@ type Result<T, A> = {
 }
 
 
-
 class Buffer {
     get_shell(): editor.ITextModel {
         let model = editor.getModel(Uri.file("shell.md"))
@@ -138,7 +137,23 @@ export class Editor {
                     case "PATH":
                         this.buffer.get(message.payload.payload, {
                             ok: (model) => {
+                                
+                                // this.editor.setSelection({
+                                //     startLineNumber: 1,
+                                //     startColumn: 1,
+                                //     endLineNumber: 1,
+                                //     endColumn: 1
+                                // });
                                 this.editor.setModel(model)
+
+                                // this.editor.setPosition({
+                                //     lineNumber: 2,
+                                //     column: 1
+                                // })
+                                // this.editor.revealPosition({
+                                //     lineNumber: 2,
+                                //     column: 1
+                                // })
                                 this.editor.focus()
                             },
                             err: () => {
@@ -217,6 +232,7 @@ export class Editor {
                                 let m = this.editor.getModel()
                                 this.editor.setModel(this.buffer.get_man())
                                 m?.dispose()
+                                this.editor.focus()
                                 break
                             case "COMMAND":
                                 this.editor.focus()

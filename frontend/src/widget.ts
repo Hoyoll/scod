@@ -15,6 +15,7 @@ export class Command {
         this.buffer = document.querySelector<HTMLInputElement>(".command-buffer")!
 
         this.buffer.addEventListener("keydown", (key) => {
+            
             if (key.key === 'Enter') {
                 let [cmd, ...rest] = this.buffer.value
                 switch (cmd as Cmd) {
