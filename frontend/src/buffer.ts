@@ -2,6 +2,54 @@ import { editor, Uri } from "monaco-editor"
 import { MANUAL } from "./man"
 import { Channel } from "./message_type"
 
+type EBuffer = {
+    [file_path: string]: {
+        view_state: null | editor.ICodeEditorViewState,
+        watched: boolean 
+    }
+}
+
+class ABuffer {
+    private buffer: EBuffer = {}
+    private feeder: Feeder
+    private active_buffer: string = "*shell.md"
+    constructor(feeder: Feeder) {
+        this.feeder = feeder
+    }
+
+    public activate(key: string) {
+        let ab = this.buffer[key]
+        this.active_buffer = key
+        this.feeder(editor.getModel(Uri.file(key)), ab.view_state)
+    }
+
+    public get_active_model(closure: (model: editor.ITextModel) => void) {
+        let m = editor.getModel(Uri.file(this.active_buffer))
+        closure(m)
+    }
+
+    public get_active_key(): string {
+        return this.active_buffer
+    }
+
+    public register(key: string, value: string, ext: string) {
+        editor.createModel(value, ext, Uri.file(key))
+        this.buffer[key] = {
+            view_state: null,
+            watched: false
+        }
+    }
+
+    public find(key: string, closure: Result<void, void>) {
+        let ab = this.buffer[key];
+        if (ab) {
+            closure.ok()
+        } else {
+            closure.err()
+        }
+    }
+}
+
 type ActiveBuffer = {
     path: string,
     view_state: null | editor.ICodeEditorViewState    
