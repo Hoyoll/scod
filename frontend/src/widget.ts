@@ -6,9 +6,9 @@ import type { Channel, Meta } from "./message_type";
 type Cmd = "/" | "$" | ":"
 
 type History = {
-    path: string[],
-    shell: string[],
-    meta: string[]
+    path: Set<string>,
+    shell: Set<string>,
+    meta: Set<string>
 }
 
 export class Command {
@@ -16,9 +16,9 @@ export class Command {
     // private wrapper: HTMLElement
     private channel: Channel
     private history: History = {
-        path: [],
-        shell: [],
-        meta: []
+        path: new Set,
+        shell: new Set,
+        meta: new Set
     }
     constructor(channel: Channel) {
         this.channel = channel
@@ -26,12 +26,20 @@ export class Command {
         this.buffer = document.querySelector<HTMLInputElement>(".command-buffer")!
 
         this.buffer.addEventListener("keydown", (key) => {
+            if (key.key === 'ArrowUp') {
+
+            }
+
+            if (key.key === 'ArrowDown') {
+
+            }
             
             if (key.key === 'Enter') {
                 let [cmd, ...rest] = this.buffer.value
                 switch (cmd as Cmd) {
                     case "/":
-                        this.history.path.push(this.buffer.value)
+                        this.history.path.delete(this.buffer.value)
+                        this.history.path.add(this.buffer.value)
                         this.channel({
                             tag: "INPUT",
                             payload: {
@@ -40,7 +48,8 @@ export class Command {
                         })
                         break
                     case "$":
-                        this.history.shell.push(this.buffer.value)
+                        this.history.shell.delete(this.buffer.value)
+                        this.history.shell.add(this.buffer.value)
                         this.channel({
                             tag: "INPUT",
                             payload: {
@@ -50,7 +59,8 @@ export class Command {
                         break
                     case ":":
                         let save = () => {
-                            this.history.meta.push(this.buffer.value)
+                            this.history.meta.delete(this.buffer.value)
+                            this.history.meta.add(this.buffer.value)
                         }
                         let [command, args] = rest.join("").trim().split(" ")
                         switch (command as Meta["action"]) {
