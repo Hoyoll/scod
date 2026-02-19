@@ -5,10 +5,21 @@ import type { Channel, Meta } from "./message_type";
 
 type Cmd = "/" | "$" | ":"
 
+type History = {
+    path: string[],
+    shell: string[],
+    meta: string[]
+}
+
 export class Command {
     private buffer: HTMLInputElement
     // private wrapper: HTMLElement
     private channel: Channel
+    private history: History = {
+        path: [],
+        shell: [],
+        meta: []
+    }
     constructor(channel: Channel) {
         this.channel = channel
         // document.querySelector<HTMLElement>(".widget-wrapper")!
@@ -20,6 +31,7 @@ export class Command {
                 let [cmd, ...rest] = this.buffer.value
                 switch (cmd as Cmd) {
                     case "/":
+                        this.history.path.push(this.buffer.value)
                         this.channel({
                             tag: "INPUT",
                             payload: {
@@ -28,6 +40,7 @@ export class Command {
                         })
                         break
                     case "$":
+                        this.history.shell.push(this.buffer.value)
                         this.channel({
                             tag: "INPUT",
                             payload: {
@@ -36,9 +49,13 @@ export class Command {
                         })
                         break
                     case ":":
+                        let save = () => {
+                            this.history.meta.push(this.buffer.value)
+                        }
                         let [command, args] = rest.join("").trim().split(" ")
                         switch (command as Meta["action"]) {
                             case "pe":
+                                save()
                                 this.channel({
                                     tag: "LOCAL",
                                     payload: {
@@ -49,6 +66,7 @@ export class Command {
                                 })
                                 break
                             case "bc":
+                                save()
                                 this.channel({
                                     tag: "LOCAL",
                                     payload: {
@@ -59,6 +77,7 @@ export class Command {
                                 })
                                 break
                             case "to":
+                                save()
                                 this.channel({
                                     tag: "LOCAL",
                                     payload: {
@@ -70,7 +89,7 @@ export class Command {
                                 })
                                 break
                             case "jm":
-
+                                save()
                                 this.channel({
                                     tag: "LOCAL",
                                     payload: {
