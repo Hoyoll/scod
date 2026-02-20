@@ -66,13 +66,15 @@ export class Command {
                 case "/":        
                 switch (key.key) {
                     case 'ArrowUp':
-                        let h = this.history.path.stack[this.history.path.idx - 1]
+                        this.history.path.idx -= 1
+                        let h = this.history.path.stack[this.history.path.idx]
                         if (h) {
                             this.buffer.value = h
                         }
                         break
                     case 'ArrowDown':
-                        h = this.history.path.stack[this.history.path.idx + 1]
+                        this.history.path.idx += 1
+                        h = this.history.path.stack[this.history.path.idx]
                         if (h) {
                             this.buffer.value = h
                         }
@@ -91,13 +93,15 @@ export class Command {
                 case "$":
                     switch (key.key) {
                         case 'ArrowUp':
-                            let h = this.history.shell.stack[this.history.shell.idx - 1]
+                            this.history.shell.idx -= 1
+                            let h = this.history.shell.stack[this.history.shell.idx]
                             if (h) {
                                 this.buffer.value = h
                             }
                             break
                         case 'ArrowDown':
-                            h = this.history.shell.stack[this.history.shell.idx + 1]
+                            this.history.shell.idx += 1
+                            h = this.history.shell.stack[this.history.shell.idx]
                             if (h) {
                                 this.buffer.value = h
                             }
@@ -116,13 +120,15 @@ export class Command {
                 case ":":
                     switch (key.key) {
                         case 'ArrowUp':
-                            let h = this.history.meta.stack[this.history.meta.idx - 1]
+                            this.history.meta.idx -= 1
+                            let h = this.history.meta.stack[this.history.meta.idx]
                             if (h) {
                                 this.buffer.value = h
                             }
                             break
                         case 'ArrowDown':
-                            h = this.history.meta.stack[this.history.meta.idx + 1]
+                            this.history.shell.idx += 1
+                            h = this.history.meta.stack[this.history.meta.idx]
                             if (h) {
                                 this.buffer.value = h
                             }
@@ -202,4 +208,19 @@ export class Command {
         }
     }
 
+}
+
+function min(num: number, limit: number): number {
+    if (num < limit) {
+        return limit
+    }
+    return num
+}
+
+
+function max(num: number, limit: number): number {
+    if (num > limit) {
+        return limit
+    }
+    return num
 }
