@@ -6,9 +6,21 @@ import type { Channel, Meta } from "./message_type";
 type Cmd = "/" | "$" | ":"
 
 type History = {
-    path: Set<string>,
-    shell: Set<string>,
-    meta: Set<string>
+    path: {
+        table: Set<string>,
+        stack: string[],
+        idx: number
+    },
+    shell: {
+        table: Set<string>,
+        stack: string[],
+        idx: number
+    },
+    meta: {
+        table: Set<string>,
+        stack: string[],
+        idx: number
+    }
 }
 
 export class Command {
@@ -16,104 +28,158 @@ export class Command {
     // private wrapper: HTMLElement
     private channel: Channel
     private history: History = {
-        path: new Set,
-        shell: new Set,
-        meta: new Set
+        path: {
+            table: new Set,
+            stack: [],
+            idx: 0
+        },
+        shell: {
+            table: new Set,
+            stack: [],
+            idx: 0
+        },
+        meta: {
+            table: new Set,
+            stack: [],
+            idx: 0
+        }
     }
+    // private history_stack: string[] = []
     constructor(channel: Channel) {
         this.channel = channel
         // document.querySelector<HTMLElement>(".widget-wrapper")!
         this.buffer = document.querySelector<HTMLInputElement>(".command-buffer")!
-
+        let reset = (
+            history: {
+                table: Set<string>,
+                stack: string[],
+                idx: number
+            }) => {        
+                history.table.delete(this.buffer.value)
+                history.table.add(this.buffer.value)
+                history.stack = Array.from(this.history.path.table.keys())
+                history.idx = this.history.path.stack.length - 1
+        }
         this.buffer.addEventListener("keydown", (key) => {
-            if (key.key === 'ArrowUp') {
-
-            }
-
-            if (key.key === 'ArrowDown') {
-
-            }
-            
-            if (key.key === 'Enter') {
-                let [cmd, ...rest] = this.buffer.value
-                switch (cmd as Cmd) {
-                    case "/":
-                        this.history.path.delete(this.buffer.value)
-                        this.history.path.add(this.buffer.value)
+            let [current_cmd, ...args] = this.buffer.value
+            switch (current_cmd as Cmd) {
+                case "/":        
+                switch (key.key) {
+                    case 'ArrowUp':
+                        let h = this.history.path.stack[this.history.path.idx - 1]
+                        if (h) {
+                            this.buffer.value = h
+                        }
+                        break
+                    case 'ArrowDown':
+                        h = this.history.path.stack[this.history.path.idx + 1]
+                        if (h) {
+                            this.buffer.value = h
+                        }
+                        break
+                    case 'Enter':
+                        reset(this.history.path)
                         this.channel({
                             tag: "INPUT",
                             payload: {
-                                tag: "PATH", payload: rest.join("").trim()
+                                tag: "PATH", payload: args.join("").trim()
                             }
                         })
                         break
-                    case "$":
-                        this.history.shell.delete(this.buffer.value)
-                        this.history.shell.add(this.buffer.value)
-                        this.channel({
-                            tag: "INPUT",
-                            payload: {
-                                tag: "SHELL", payload: rest.join("").trim()
-                            }
-                        })
-                        break
-                    case ":":
-                        let save = () => {
-                            this.history.meta.delete(this.buffer.value)
-                            this.history.meta.add(this.buffer.value)
-                        }
-                        let [command, args] = rest.join("").trim().split(" ")
-                        switch (command as Meta["action"]) {
-                            case "pe":
-                                save()
-                                this.channel({
-                                    tag: "LOCAL",
-                                    payload: {
-                                        action: "META", for: {
-                                            action: "pe"
-                                        }
-                                    }
-                                })
-                                break
-                            case "bc":
-                                save()
-                                this.channel({
-                                    tag: "LOCAL",
-                                    payload: {
-                                        action: "META", for: {
-                                            action: "bc"
-                                        }
-                                    }
-                                })
-                                break
-                            case "to":
-                                save()
-                                this.channel({
-                                    tag: "LOCAL",
-                                    payload: {
-                                        action: "META", for: {
-                                            action: "to",
-                                            arg: parseInt(args)
-                                        }
-                                    }
-                                })
-                                break
-                            case "jm":
-                                save()
-                                this.channel({
-                                    tag: "LOCAL",
-                                    payload: {
-                                        action: "META", for: {
-                                            action: "jm",
-                                            arg: parseInt(args)
-                                        }
-                                    }
-                                })
-                                break
-                            case "wf":
-                                break
-                        }
                 }
+                    break
+                case "$":
+                    switch (key.key) {
+                        case 'ArrowUp':
+                            let h = this.history.shell.stack[this.history.shell.idx - 1]
+                            if (h) {
+                                this.buffer.value = h
+                            }
+                            break
+                        case 'ArrowDown':
+                            h = this.history.shell.stack[this.history.shell.idx + 1]
+                            if (h) {
+                                this.buffer.value = h
+                            }
+                            break
+                        case 'Enter':
+                            reset(this.history.shell)
+                            this.channel({
+                                tag: "INPUT",
+                                payload: {
+                                    tag: "SHELL", payload: args.join("").trim()
+                                }
+                            })
+                            break
+                    }
+                    break
+                case ":":
+                    switch (key.key) {
+                        case 'ArrowUp':
+                            let h = this.history.meta.stack[this.history.meta.idx - 1]
+                            if (h) {
+                                this.buffer.value = h
+                            }
+                            break
+                        case 'ArrowDown':
+                            h = this.history.meta.stack[this.history.meta.idx + 1]
+                            if (h) {
+                                this.buffer.value = h
+                            }
+                            break
+                        case 'Enter':
+                            reset(this.history.meta)
+                            let [command, argv] = args.join("").trim().split(" ")
+
+                            switch (command as Meta["action"]) {
+                                case "pe":
+                                    this.channel({
+                                        tag: "LOCAL",
+                                        payload: {
+                                            action: "META", for: {
+                                                action: "pe"
+                                            }
+                                        }
+                                    })
+                                    break
+                                case "bc":
+                                    this.channel({
+                                        tag: "LOCAL",
+                                        payload: {
+                                            action: "META", for: {
+                                                action: "bc"
+                                            }
+                                        }
+                                    })
+                                    break
+                                case "to":
+                                    this.channel({
+                                        tag: "LOCAL",
+                                        payload: {
+                                            action: "META", for: {
+                                                action: "to",
+                                                arg: parseInt(argv)
+                                            }
+                                        }
+                                    })
+                                    break
+                                case "jm":
+                                    this.channel({
+                                        tag: "LOCAL",
+                                        payload: {
+                                            action: "META", for: {
+                                                action: "jm",
+                                                arg: parseInt(argv)
+                                            }
+                                        }
+                                    })
+                                    break
+                                case "wf":
+                                    break
+                            }
+                }
+                    break
+
             }
         })
     }
