@@ -3,7 +3,7 @@ import { Ext } from "./language"
 import { MANUAL } from "./man"
 import { type Message } from "./message_type"
 import { Command } from "./widget"
-
+import { ABuffer } from "./buffer"
 
 type Result<T, A> = {
     ok: (value: T) => void
@@ -52,13 +52,13 @@ class Buffer {
 
 export class Editor {
     private command: Command
-    private buffer: Buffer
+    private buffer: ABuffer
     private editor: editor.IStandaloneCodeEditor
     constructor(doc: HTMLDivElement) {
         let channel = (message: Message) => {
             this.receive(message)
         }
-        this.buffer = new Buffer()
+        this.buffer = new ABuffer()
         this.command = new Command(channel)
         this.setup_command()
 
@@ -104,7 +104,7 @@ export class Editor {
             snippetSuggestions: "none"
 
         })
-        this.editor.setModel(this.buffer.get_man())
+        // this.editor.setModel(this.buffer.get_man())
         this.setup_widget()
         // this.editor.setModel(null)
         this.receive({
@@ -119,8 +119,21 @@ export class Editor {
     }
 
     private setup_widget() {
+        this.receive({
+            tag: "OUTPUT", payload: {
+                id: 0,
+                out: {
+                    tag: "OK",
+                    payload: "Scod is ready to use!"
+                }
+            }
+        })
+        this.receive({
+            tag: "INPUT", payload: {
+                tag: "PATH", payload: "*shell.md"
+            }
+        })
         this.editor.addOverlayWidget(this.command)
-        editor.createModel("", "markdown", Uri.file("shell.buff"))
     }
 
     private send(message: Message) {
@@ -128,6 +141,7 @@ export class Editor {
     }
 
     public receive(message: Message) {
+        console.log(message)
         switch (message.tag) {
             case "INPUT":
                 switch (message.payload.tag) {
@@ -135,25 +149,10 @@ export class Editor {
                         this.send(message)
                         break
                     case "PATH":
-                        this.buffer.get(message.payload.payload, {
+                        this.buffer.find(message.payload.payload, {
                             ok: (model) => {
-                                
-                                // this.editor.setSelection({
-                                //     startLineNumber: 1,
-                                //     startColumn: 1,
-                                //     endLineNumber: 1,
-                                //     endColumn: 1
-                                // });
-                                this.editor.setModel(model)
-
-                                // this.editor.setPosition({
-                                //     lineNumber: 2,
-                                //     column: 1
-                                // })
-                                // this.editor.revealPosition({
-                                //     lineNumber: 2,
-                                //     column: 1
-                                // })
+                                this.editor.setModel(model.model)
+                                this.editor.restoreViewState(model.view_state)
                                 this.editor.focus()
                             },
                             err: () => {
@@ -165,37 +164,9 @@ export class Editor {
                 break
             case "OUTPUT":
                 let status = `[${message.payload.out.tag}]`;
-
-                let mo = this.buffer.get_shell()
-                let last_line = mo.getLineCount();
-                let last_column = mo.getLineMaxColumn(last_line);
-                mo.pushEditOperations(
-                    null,
-                    [{
-                        range: {
-                            startLineNumber: last_line,
-                            startColumn: last_column,
-                            endLineNumber: last_line,
-                            endColumn: last_column
-                        },
-                        text: status + `[PID: ${message.payload.id}]: ` + message.payload.out.payload + '\n'
-                    }],
-                    () => null
-                )
-                break
-            case "BUFFER":
-                switch (message.payload.tag) {
-                    case "NEW":
-                        let model = editor.createModel(message.payload.payload.buffer, Ext[message.payload.payload.ext], Uri.file(message.payload.payload.path))
-                        this.editor.setModel(model)
-                        this.editor.focus()
-                        break
-                    case "EDIT":
-                        editor.getModel(Uri.file(message.payload.payload.path))
-                            ?.setValue(message.payload.payload.buffer)
-                        break
-                    case "ERROR":
-                        let mo = this.buffer.get_shell()
+                this.buffer.find("*shell.md", {
+                    ok: (model) => {
+                        let mo = model.model
                         let last_line = mo.getLineCount();
                         let last_column = mo.getLineMaxColumn(last_line);
                         mo.pushEditOperations(
@@ -207,10 +178,45 @@ export class Editor {
                                     endLineNumber: last_line,
                                     endColumn: last_column
                                 },
-                                text: `[IO-ERROR]: ` + message.payload.payload + '\n'
+                                text: status + `[PID: ${message.payload.id}]: ` + message.payload.out.payload + '\n'
                             }],
                             () => null
                         )
+                    },
+                    err: () => {
+                        this.buffer.register("*shell.md", "", "markdown")
+                        this.receive(message)
+                    }
+                })
+                break
+            case "BUFFER":
+                switch (message.payload.tag) {
+                    case "NEW":
+                        this.buffer.register(message.payload.payload.path, message.payload.payload.buffer, Ext[message.payload.payload.ext])
+                        this.receive({
+                            tag: "INPUT",
+                            payload: {
+                                tag: "PATH", payload: message.payload.payload.path
+                            }
+                        })
+                        // let model = editor.createModel(message.payload.payload.buffer, Ext[message.payload.payload.ext], Uri.file(message.payload.payload.path))
+                        // this.editor.setModel(model)
+                        // this.editor.focus()
+                        break
+                    case "EDIT":
+                        editor.getModel(Uri.file(message.payload.payload.path))
+                            ?.setValue(message.payload.payload.buffer)
+                        break
+                    case "ERROR":
+                        this.receive({
+                            tag: "OUTPUT", payload: {
+                                id: 0,
+                                out: {
+                                    tag: "ERROR",
+                                    payload: `[IO-ERROR]: ` + message.payload.payload
+                                }
+                            }
+                        })
                         break
                 }
                 break
@@ -230,10 +236,14 @@ export class Editor {
                         switch (message.payload.for) {
                             case "EDITOR":
                                 let m = this.editor.getModel()
-                                this.editor.setModel(this.buffer.get_man())
+                                // this.editor.setModel(this.buffer.get_man())
+                                this.receive({
+                                    tag: "INPUT", payload: {
+                                        tag: "PATH", payload: "*shell.md"
+                                    }
+                                })
                                 m?.dispose()
-                                this.editor.focus()
-                                break
+                                // this.editor.focus()
                             case "COMMAND":
                                 this.editor.focus()
                                 break

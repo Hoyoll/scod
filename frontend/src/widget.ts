@@ -57,8 +57,8 @@ export class Command {
             }) => {        
                 history.table.delete(this.buffer.value)
                 history.table.add(this.buffer.value)
-                history.stack = Array.from(this.history.path.table.keys())
-                history.idx = this.history.path.stack.length - 1
+                history.stack = Array.from(history.table.keys())
+                history.idx = history.stack.length - 1
         }
         this.buffer.addEventListener("keydown", (key) => {
             let [current_cmd, ...args] = this.buffer.value
@@ -74,9 +74,9 @@ export class Command {
                         break
                     case 'ArrowDown':
                         this.history.path.idx += 1
-                        h = this.history.path.stack[this.history.path.idx]
-                        if (h) {
-                            this.buffer.value = h
+                        let his = this.history.path.stack[this.history.path.idx]
+                        if (his) {
+                            this.buffer.value = his
                         }
                         break
                     case 'Enter':
@@ -89,7 +89,7 @@ export class Command {
                         })
                         break
                 }
-                    break
+                break
                 case "$":
                     switch (key.key) {
                         case 'ArrowUp':
@@ -101,9 +101,9 @@ export class Command {
                             break
                         case 'ArrowDown':
                             this.history.shell.idx += 1
-                            h = this.history.shell.stack[this.history.shell.idx]
-                            if (h) {
-                                this.buffer.value = h
+                            let his = this.history.shell.stack[this.history.shell.idx]
+                            if (his) {
+                                this.buffer.value = his
                             }
                             break
                         case 'Enter':
@@ -128,9 +128,9 @@ export class Command {
                             break
                         case 'ArrowDown':
                             this.history.shell.idx += 1
-                            h = this.history.meta.stack[this.history.meta.idx]
-                            if (h) {
-                                this.buffer.value = h
+                            let his = this.history.meta.stack[this.history.meta.idx]
+                            if (his) {
+                                this.buffer.value = his
                             }
                             break
                         case 'Enter':
