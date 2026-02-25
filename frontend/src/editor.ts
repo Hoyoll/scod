@@ -1,9 +1,10 @@
 import { editor, KeyCode, KeyMod, Uri } from "monaco-editor"
+import { ABuffer } from "./buffer"
 import { Ext } from "./language"
 import { MANUAL } from "./man"
-import { type Message } from "./message_type"
+import { type Channel, type Message } from "./message_type"
+import { Meta } from "./meta"
 import { Command } from "./widget"
-import { ABuffer } from "./buffer"
 
 type Result<T, A> = {
     ok: (value: T) => void
@@ -54,12 +55,13 @@ export class Editor {
     private command: Command
     private buffer: ABuffer
     private editor: editor.IStandaloneCodeEditor
+    private channel: Channel
     constructor(doc: HTMLDivElement) {
-        let channel = (message: Message) => {
+        this.channel = (message: Message) => {
             this.receive(message)
         }
         this.buffer = new ABuffer()
-        this.command = new Command(channel)
+        this.command = new Command(this.channel)
         this.setup_command()
 
         this.editor = editor.create(doc, {
@@ -151,6 +153,8 @@ export class Editor {
                     case "PATH":
                         this.buffer.find(message.payload.payload, {
                             ok: (model) => {
+                                // let m = this.editor.getModel
+
                                 this.editor.setModel(model.model)
                                 this.editor.restoreViewState(model.view_state)
                                 this.editor.focus()
@@ -199,13 +203,9 @@ export class Editor {
                                 tag: "PATH", payload: message.payload.payload.path
                             }
                         })
-                        // let model = editor.createModel(message.payload.payload.buffer, Ext[message.payload.payload.ext], Uri.file(message.payload.payload.path))
-                        // this.editor.setModel(model)
-                        // this.editor.focus()
                         break
                     case "EDIT":
-                        editor.getModel(Uri.file(message.payload.payload.path))
-                            ?.setValue(message.payload.payload.buffer)
+                        this.send(message)
                         break
                     case "ERROR":
                         this.receive({
@@ -236,70 +236,21 @@ export class Editor {
                         switch (message.payload.for) {
                             case "EDITOR":
                                 let m = this.editor.getModel()
-                                // this.editor.setModel(this.buffer.get_man())
+                                // let [_, ...rest] = m?.uri.path!
                                 this.receive({
                                     tag: "INPUT", payload: {
                                         tag: "PATH", payload: "*shell.md"
                                     }
                                 })
                                 m?.dispose()
-                                // this.editor.focus()
+                                break
                             case "COMMAND":
                                 this.editor.focus()
                                 break
                         }
                         break
                     case "META":
-                        switch (message.payload.for.action) {
-                            case "pe":
-                                let model = this.editor.getModel()
-                                if (!model) {
-                                    return
-                                }
-                                let [_, ...path] = model.uri.path
-                                this.send({
-                                    tag: "BUFFER", payload: {
-                                        tag: "EDIT", payload: {
-                                            buffer: model.getValue(),
-                                            path: path.join("").trim()
-                                        }
-                                    }
-                                })
-
-                                break
-                            case "bc":
-                                this.receive({
-                                    tag: "LOCAL", payload: {
-                                        for: "EDITOR", action: "CLOSE"
-                                    }
-                                })
-                                break
-                            case "to":
-                                let pos = this.editor.getPosition()!
-                                this.editor.setPosition({
-                                    lineNumber: message.payload.for.arg,
-                                    column: pos.column
-                                })
-                                this.editor.revealPosition({
-                                    lineNumber: message.payload.for.arg,
-                                    column: pos.column
-                                })
-                                break
-                            case "jm":
-                                let p = this.editor.getPosition()!
-                                let new_pos = p.lineNumber + message.payload.for.arg;
-                                this.editor.setPosition({
-                                    lineNumber: new_pos,
-                                    column: p.column
-                                })
-                                this.editor.revealPosition({
-                                    lineNumber: new_pos,
-                                    column: p.column
-                                })
-                                break
-                            case "wf":
-                                break
-                        }
+                        message.payload.for(this.editor, this.channel)
                         break
                 }
         }
@@ -311,9 +262,7 @@ export class Editor {
             run: () => {
                 this.receive({
                     tag: "LOCAL", payload: {
-                        action: "META", for: {
-                            action: "jm", arg: -5
-                        }
+                        action: "META", for: Meta["jm"]("-5")
                     }
                 })
             }
@@ -328,12 +277,9 @@ export class Editor {
         editor.addCommand({
             id: "jump.down",
             run: () => {
-                // let pos = this.editor.getPosition()!
                 this.receive({
                     tag: "LOCAL", payload: {
-                        action: "META", for: {
-                            action: "jm", arg: 5
-                        }
+                        action: "META", for: Meta["jm"]("5")
                     }
                 })
             }
@@ -378,22 +324,6 @@ export class Editor {
         editor.addKeybindingRule({
             keybinding: KeyMod.CtrlCmd | KeyCode.Period,
             command: "scod.command"
-        })
-
-        editor.addCommand({
-            id: 'close.command',
-            run: () => {
-                this.receive({
-                    tag: "LOCAL", payload: {
-                        action: "CLOSE", for: "COMMAND"
-                    }
-                })
-            }
-        })
-
-        editor.addKeybindingRule({
-            keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period,
-            command: 'close.command'
         })
 
         editor.addCommand({

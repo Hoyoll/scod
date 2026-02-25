@@ -1,3 +1,5 @@
+import type { MAction } from "./meta"
+
 export type Message =
     | {
         tag: "WINDOW", payload:
@@ -54,7 +56,7 @@ export type Local =
         action: "CLOSE", for: Widget
     }
     | {
-        action: "META", for: Meta
+        action: "META", for: MAction
     }
 
 export type Meta =

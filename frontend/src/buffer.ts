@@ -1,16 +1,19 @@
 import { editor, Uri } from "monaco-editor"
-// import { MANUAL } from "./man"
-// import { Channel } from "./message_type"
 
-type EBuffer = {
-    [file_path: string]: {
+// type EBuffer = {
+    // [file_path: string]: {
+    //     view_state: null | editor.ICodeEditorViewState,
+    //     watched: boolean
+    // } | undefined
+// }
+
+type EBuffer = Map<string, {
         view_state: null | editor.ICodeEditorViewState,
-        watched: boolean 
-    } | undefined
-}
+        watched: boolean
+    }>
 
 export class ABuffer {
-    private buffer: EBuffer = {}
+    private buffer: EBuffer = new Map()
     // private active_buffer: string = "*shell.md"
     // constructor(feeder: Feeder) {
     //     this.feeder = feeder
@@ -33,22 +36,23 @@ export class ABuffer {
 
     public register(key: string, value: string, ext: string) {
         editor.createModel(value, ext, Uri.file(key))
-        this.buffer[key] = {
+        this.buffer.set(key, {
             view_state: null,
             watched: false
-        }
+        })
+        // this.buffer[key] = {
+        //     view_state: null,
+        //     watched: false
+        // }
     }
 
     public find(key: string, closure: Result<{
         model: editor.ITextModel,
         view_state: null | editor.ICodeEditorViewState
     }, void>) {
-        let ab = this.buffer[key];
-        console.log(key)
-        console.log(this.buffer)
+        let ab = this.buffer.get(key);        
         if (ab) {
-            console.log("ok")
-            let model = editor.getModel(Uri.file(key));
+            let model = editor.getModel(Uri.file(key))!;
             closure.ok({
                 model: model,
                 view_state: ab.view_state
