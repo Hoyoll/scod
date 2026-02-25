@@ -153,11 +153,12 @@ export class Editor {
                     case "PATH":
                         this.buffer.find(message.payload.payload, {
                             ok: (model) => {
-                                // let m = this.editor.getModel
-
+                                let mo = this.editor.getModel()!
+                                let [_, ...rest] = mo.uri.path
+                                this.buffer.set_vs(rest.join(""), this.editor.saveViewState())
                                 this.editor.setModel(model.model)
                                 this.editor.restoreViewState(model.view_state)
-                                this.editor.focus()
+                                this.command.focus()
                             },
                             err: () => {
                                 this.send(message)

@@ -46,6 +46,20 @@ export class ABuffer {
         // }
     }
 
+    // public query(key: string, closure: (data:  {
+    //     view_state: null | editor.ICodeEditorViewState,
+    //     watched: boolean
+    // }) => void) {
+        
+    // }
+
+    public set_vs(key: string, view_state: null | editor.ICodeEditorViewState) {
+        let b = this.buffer.get(key)
+        if (b) {
+            b.view_state = view_state
+        }
+    }
+
     public find(key: string, closure: Result<{
         model: editor.ITextModel,
         view_state: null | editor.ICodeEditorViewState
@@ -58,7 +72,7 @@ export class ABuffer {
                 view_state: ab.view_state
             })
         } else {
-            console.log("NOT ok")
+            // console.log("NOT ok")
             closure.err()
         }
     }

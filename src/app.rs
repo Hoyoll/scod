@@ -115,12 +115,6 @@ pub enum Win {
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
 pub enum Buffer {
-    // Ok {
-    //     buffer: String,
-    //     /// The PATH LOOKS like THIS: "path/to/file.txt"!
-    //     path: String,
-    //     ext: String,
-    // },
     New {
         buffer: String,
         /// The PATH LOOKS like THIS: "path/to/file.txt"!

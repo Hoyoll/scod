@@ -74,6 +74,9 @@ export class Command {
                             }
                             break
                         case 'Enter':
+
+                            // key.preventDefault()
+                            // key.stopPropagation()
                             reset(this.history.path)
                             this.channel({
                                 tag: "INPUT",
@@ -132,6 +135,7 @@ export class Command {
                             reset(this.history.meta)
                             let [command, ...argv] = args.join("").trim().split(" ")
                             let mcommand = command as MCommand;
+                            // key.stopPropagation()
                             this.channel({
                                 tag: "LOCAL",
                                 payload: {
