@@ -17,13 +17,7 @@ export type Message =
         }
     }
     | {
-        tag: "OUTPUT", payload: {
-            id: number,
-            out: {
-                tag: "ERROR" | "OK", payload: string
-            }
-
-        }
+        tag: "OUTPUT", payload: string
     }
     | {
         tag: "BUFFER", payload:
@@ -57,6 +51,9 @@ export type Local =
     }
     | {
         action: "META", for: MAction
+    }
+    | {
+        action: "COMMAND", for: string
     }
 
 export type Meta =

@@ -18,7 +18,6 @@ use winit::{
 };
 use wry::{
     WebView, WebViewBuilder,
-    cookie::time::macros::utc_datetime,
     http::{Request, Response, StatusCode},
 };
 
@@ -86,10 +85,7 @@ fn mime_from_extension(ext: &str) -> &'static str {
 pub enum Message {
     Window(Win),
     Input(Action),
-    Output {
-        id: u32,
-        out: Error<String>,
-    },
+    Output(String),
     Buffer(Buffer),
     #[serde(skip_serializing, skip_deserializing)]
     /// The String here IS a serialized Message!
@@ -132,13 +128,6 @@ pub enum Buffer {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "UPPERCASE", untagged)]
-pub enum Dir {
-    In,
-    Out,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "UPPERCASE", tag = "tag", content = "payload")]
 pub enum Action {
     Shell(String),
@@ -146,6 +135,12 @@ pub enum Action {
     Path(String),
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "UPPERCASE", untagged)]
+pub enum Dir {
+    In,
+    Out,
+}
 ///
 ///
 ///
@@ -284,10 +279,11 @@ impl App {
                                     if let Some(stdout) = child.stdout.take() {
                                         let mut buf = BufReader::new(stdout);
                                         for line in buf.lines() {
-                                            let msg = Message::Output {
+                                            let msg = Message::Output(format!(
+                                                "[PID: {}][OK]: {}",
                                                 id,
-                                                out: Error::Ok(line.unwrap()),
-                                            };
+                                                line.unwrap()
+                                            ));
                                             to_string(&msg)
                                                 .map(|json| proxy.send_event(Message::Eval(json)));
                                         }
@@ -296,10 +292,11 @@ impl App {
                                     if let Some(stderr) = child.stderr.take() {
                                         let mut buf = BufReader::new(stderr);
                                         for line in buf.lines() {
-                                            let msg = Message::Output {
+                                            let msg = Message::Output(format!(
+                                                "[PID: {}][ERROR]: {}",
                                                 id,
-                                                out: Error::Error(line.unwrap()),
-                                            };
+                                                line.unwrap()
+                                            ));
 
                                             to_string(&msg)
                                                 .map(|json| proxy.send_event(Message::Eval(json)));
@@ -307,28 +304,22 @@ impl App {
                                     }
                                 }
                                 Err(e) => {
-                                    let msg = Message::Output {
-                                        id: 0,
-                                        out: Error::Error(format!(
-                                            "Error Occured for command: [{}] {}",
-                                            command,
-                                            e.to_string()
-                                        )),
-                                    };
+                                    let msg = Message::Output(format!(
+                                        "Error Occured for command: [{}] {}",
+                                        command,
+                                        e.to_string()
+                                    ));
                                     to_string(&msg)
                                         .map(|json| proxy.send_event(Message::Eval(json)));
                                 }
                             });
                         }
                         Err(e) => {
-                            let msg = Message::Output {
-                                id: 0,
-                                out: Error::Error(format!(
-                                    "Invalid structure for: [{}] {}",
-                                    command,
-                                    e.to_string()
-                                )),
-                            };
+                            let msg = Message::Output(format!(
+                                "Invalid structure for: [{}] {}",
+                                command,
+                                e.to_string()
+                            ));
                             to_string(&msg).map(|json| proxy.send_event(Message::Eval(json)));
                         }
                     },
@@ -361,7 +352,7 @@ impl App {
                 }
                 None => (),
             },
-            Message::Output { id, out } => todo!(),
+            Message::Output(s) => todo!(),
         }
     }
 

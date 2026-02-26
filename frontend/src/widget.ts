@@ -19,7 +19,6 @@ type History = {
 
 export class Command {
     private buffer: HTMLInputElement
-    // private wrapper: HTMLElement
     private channel: Channel
     private history: History = {
         path: {
@@ -41,21 +40,9 @@ export class Command {
     // private history_stack: string[] = []
     constructor(channel: Channel) {
         this.channel = channel
-        // document.querySelector<HTMLElement>(".widget-wrapper")!
         this.buffer = document.querySelector<HTMLInputElement>(".command-buffer")!
-        let reset = (
-            history: {
-                table: Set<string>,
-                stack: string[],
-                idx: number
-            }) => {
-            history.table.delete(this.buffer.value)
-            history.table.add(this.buffer.value)
-            history.stack = Array.from(history.table.keys())
-            history.idx = history.stack.length - 1
-        }
         this.buffer.addEventListener("keydown", (key) => {
-            let [current_cmd, ...args] = this.buffer.value
+            let [current_cmd, _] = this.buffer.value
             switch (current_cmd as Cmd) {
                 case "/":
                     switch (key.key) {
@@ -74,17 +61,8 @@ export class Command {
                             }
                             break
                         case 'Enter':
-
-                            // key.preventDefault()
-                            // key.stopPropagation()
-                            reset(this.history.path)
-                            this.channel({
-                                tag: "INPUT",
-                                payload: {
-                                    tag: "PATH", payload: args.join("").trim()
-                                }
-                            })
-                            break
+                            this.reset(this.history.path)
+                            this.receive(this.buffer.value)
                     }
                     break
                 case "$":
@@ -104,13 +82,8 @@ export class Command {
                             }
                             break
                         case 'Enter':
-                            reset(this.history.shell)
-                            this.channel({
-                                tag: "INPUT",
-                                payload: {
-                                    tag: "SHELL", payload: args.join("").trim()
-                                }
-                            })
+                            this.reset(this.history.shell)
+                            this.receive(this.buffer.value)
                             break
                     }
                     break
@@ -132,22 +105,63 @@ export class Command {
                             }
                             break
                         case 'Enter':
-                            reset(this.history.meta)
-                            let [command, ...argv] = args.join("").trim().split(" ")
-                            let mcommand = command as MCommand;
-                            // key.stopPropagation()
-                            this.channel({
-                                tag: "LOCAL",
-                                payload: {
-                                    action: "META",
-                                    for: Meta[mcommand](argv.join(""))
-                                }
-                            })
+                            this.reset(this.history.meta)
+                            this.receive(this.buffer.value)
                     }
                     break
 
             }
         })
+    }
+
+    public receive(command: string) {
+        let [current_cmd, ...args] = command
+
+        switch (current_cmd as Cmd) {
+            case "/":
+                this.channel({
+                    tag: "INPUT",
+                    payload: {
+                        tag: "PATH", payload: args.join("").trim()
+                    }
+                })
+
+                break
+            case "$":
+                this.channel({
+                    tag: "INPUT",
+                    payload: {
+                        tag: "SHELL", payload: args.join("").trim()
+                    }
+                })
+                break
+            case ":":
+                let [command, ...argv] = args.join("").trim().split(" ")
+                let mcommand = command as MCommand;
+                this.channel({
+                    tag: "LOCAL",
+                    payload: {
+                        action: "META",
+                        for: Meta[mcommand](argv.join(" "))
+                    }
+                })
+                break
+        }
+
+    }
+
+    private reset(history: HistoryBuff) {
+        // let reset = (
+        // history: {
+        //     table: Set<string>,
+        //     stack: string[],
+        //     idx: number
+        // }) => {
+        history.table.delete(this.buffer.value)
+        history.table.add(this.buffer.value)
+        history.stack = Array.from(history.table.keys())
+        history.idx = history.stack.length - 1
+        // }
     }
 
     public focus() {

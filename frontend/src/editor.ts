@@ -122,13 +122,7 @@ export class Editor {
 
     private setup_widget() {
         this.receive({
-            tag: "OUTPUT", payload: {
-                id: 0,
-                out: {
-                    tag: "OK",
-                    payload: "Scod is ready to use!"
-                }
-            }
+            tag: "OUTPUT", payload: "Scod is ready to use!"
         })
         this.receive({
             tag: "INPUT", payload: {
@@ -161,6 +155,7 @@ export class Editor {
                                 this.command.focus()
                             },
                             err: () => {
+
                                 this.send(message)
                             }
                         })
@@ -168,7 +163,7 @@ export class Editor {
                 }
                 break
             case "OUTPUT":
-                let status = `[${message.payload.out.tag}]`;
+                // let status = `[${message.payload.out.tag}]`;
                 this.buffer.find("*shell.md", {
                     ok: (model) => {
                         let mo = model.model
@@ -183,7 +178,7 @@ export class Editor {
                                     endLineNumber: last_line,
                                     endColumn: last_column
                                 },
-                                text: status + `[PID: ${message.payload.id}]: ` + message.payload.out.payload + '\n'
+                                text: message.payload + `\n`
                             }],
                             () => null
                         )
@@ -210,13 +205,7 @@ export class Editor {
                         break
                     case "ERROR":
                         this.receive({
-                            tag: "OUTPUT", payload: {
-                                id: 0,
-                                out: {
-                                    tag: "ERROR",
-                                    payload: `[IO-ERROR]: ` + message.payload.payload
-                                }
-                            }
+                            tag: "OUTPUT", payload: `[IO-ERROR]: ` + message.payload.payload
                         })
                         break
                 }
@@ -252,6 +241,9 @@ export class Editor {
                         break
                     case "META":
                         message.payload.for(this.editor, this.channel)
+                        break
+                    case "COMMAND":
+                        this.command.receive(message.payload.for)
                         break
                 }
         }

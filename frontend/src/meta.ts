@@ -56,18 +56,34 @@ export const Meta: MTable = {
                 column: p.column
             })
         }
+    },
+    "cs": (arg: string) => {
+        let args = arg.split(",")
+        return (_, channel: Channel) => {
+            args.forEach((cmd) => {
+                console.log(cmd)
+                channel({
+                    tag: "LOCAL", payload: {
+                        action: "COMMAND", for: cmd.trim()
+                    }
+                })
+            })
+        }
     }
 }
+
+// :cs /*shell.md, $ git add ., :to -1 
 
 export type MCommand =
     | "pe"
     | "bc"
     | "to"
     | "jm"
+    | "cs"
 
 export type MAction = (editor: editor.IStandaloneCodeEditor, channel: Channel) => void
 
 export type MTable = {
-    [key in MCommand]:
+    [key: string]:
     ((args: string) => MAction)
 }
