@@ -55,6 +55,9 @@ export type Local =
     | {
         action: "COMMAND", for: string
     }
+    | {
+        action: "LOAD_ALIAS", for: string
+    }
 
 export type Meta =
     /// Perform Write operation, basically (p)ushing (e)dit the file

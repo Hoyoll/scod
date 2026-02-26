@@ -1,55 +1,9 @@
-import { editor, KeyCode, KeyMod, Uri } from "monaco-editor"
+import { editor, KeyCode, KeyMod } from "monaco-editor"
 import { ABuffer } from "./buffer"
 import { Ext } from "./language"
-import { MANUAL } from "./man"
 import { type Channel, type Message } from "./message_type"
 import { Meta } from "./meta"
 import { Command } from "./widget"
-
-type Result<T, A> = {
-    ok: (value: T) => void
-    err: (value: A) => void
-}
-
-
-class Buffer {
-    get_shell(): editor.ITextModel {
-        let model = editor.getModel(Uri.file("shell.md"))
-        if (!model) {
-
-            return editor.createModel(``, "markdown", Uri.file("shell.md"))
-        }
-        return model
-    }
-
-    get_man(): editor.ITextModel {
-        let model = editor.getModel(Uri.file("man.md"))
-        if (!model) {
-            return editor.createModel(MANUAL, "markdown", Uri.file("man.md"))
-        }
-        return model
-    }
-
-    next() {
-
-    }
-
-    prev() {
-
-    }
-
-    new(key: string, value: string, ext: string) {
-        editor.createModel(value, ext, Uri.file(key))
-    }
-
-    get(key: string, handlers: Result<editor.ITextModel, void>) {
-        let m = editor.getModel(Uri.file(key))
-        if (m === null) {
-            return handlers.err()
-        }
-        return handlers.ok(m)
-    }
-}
 
 export class Editor {
     private command: Command
@@ -163,7 +117,6 @@ export class Editor {
                 }
                 break
             case "OUTPUT":
-                // let status = `[${message.payload.out.tag}]`;
                 this.buffer.find("*shell.md", {
                     ok: (model) => {
                         let mo = model.model
@@ -244,6 +197,11 @@ export class Editor {
                         break
                     case "COMMAND":
                         this.command.receive(message.payload.for)
+                        break
+                    case "LOAD_ALIAS":
+                        import(message.payload.for).then((plugin) => {
+                            plugin.setup(Meta)
+                        })
                         break
                 }
         }

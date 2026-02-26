@@ -11,6 +11,10 @@ type HistoryBuff = {
     idx: number
 }
 
+export type Alias = {
+    [key: string]: string
+}
+
 type History = {
     path: HistoryBuff,
     shell: HistoryBuff,

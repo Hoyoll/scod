@@ -25,7 +25,6 @@ const URL: &'static str = "scod://index.html";
 const HEAD: &'static str = "scod";
 fn protocol(_url: &str, req: Request<Vec<u8>>) -> Response<Cow<'static, [u8]>> {
     let uri = req.uri();
-
     let exe = env::current_exe().unwrap();
     let mut path = PathBuf::from(exe.parent().unwrap());
     let res = match uri.path() {

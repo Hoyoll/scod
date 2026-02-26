@@ -61,13 +61,24 @@ export const Meta: MTable = {
         let args = arg.split(",")
         return (_, channel: Channel) => {
             args.forEach((cmd) => {
-                console.log(cmd)
+                // console.log(cmd)
                 channel({
                     tag: "LOCAL", payload: {
                         action: "COMMAND", for: cmd.trim()
                     }
                 })
             })
+        }
+    },
+    "la": (path: string) => {
+        return (_, channel: Channel) => {
+            if (path) {
+                channel({
+                    tag: "LOCAL", payload: {
+                        action: "LOAD_ALIAS", for: path
+                    }
+                })
+            }
         }
     }
 }
