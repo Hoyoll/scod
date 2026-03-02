@@ -5,19 +5,6 @@ import "./night-owl.json";
 import nightowl from "./night-owl.json";
 import './style.css';
 
-
-// self.MonacoEnvironment = {
-//   getWorker(_, label) {
-//     switch (label) {
-//       case "rust":
-//         return new rustworker()
-
-//       default:
-//         return new editorWorker()
-//     }
-//   }
-// }
-// setup_worker()
 let doc = document.querySelector<HTMLDivElement>('#app')!
 editor.defineTheme("nightowl", {
   base: 'hc-black',

@@ -83,20 +83,30 @@ fn mime_from_extension(ext: &str) -> &'static str {
 #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
 pub enum Message {
     Window(Win),
-    Input(Action),
-    Output(String),
+    // Input(Action),
+    // Output(String),
     Buffer(Buffer),
+    Module {
+        key: String,
+        data: String,
+    },
+    Port {
+        key: String,
+        data: String,
+    },
+    Alias(String),
+    Command(String),
     #[serde(skip_serializing, skip_deserializing)]
     /// The String here IS a serialized Message!
     Eval(String),
 }
 
-#[derive(Deserialize, Serialize)]
-#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
-pub enum Error<T> {
-    Error(T),
-    Ok(T),
-}
+// #[derive(Deserialize, Serialize)]
+// #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
+// pub enum Error<T> {
+//     Error(T),
+//     Ok(T),
+// }
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "tag", rename_all = "UPPERCASE")]
@@ -116,14 +126,26 @@ pub enum Buffer {
         path: String,
         ext: String,
     },
+    /// To keep it simple, -1 WILL automatically resolve into the back of column/line
     Edit {
+        text: String,
+        path: String,
+        line: i32,
+        column: i32,
+    },
+    Save {
         buffer: String,
         path: String,
     },
-    Error {
-        message: String,
-        path: String,
-    },
+    Open(String),
+    Status(Result<String, String>),
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
+pub enum Pos {
+    Last,
+    Coord { column: usize, line: usize },
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -140,14 +162,6 @@ pub enum Dir {
     In,
     Out,
 }
-///
-///
-///
-///
-/// Command::new("sh")
-///     .arg("-C echo hello")
-///     .spawn()
-///     .expect("ls command failed to start");
 
 pub struct Context {
     pub window: Window,
@@ -231,10 +245,18 @@ impl App {
                     }
                 }
             },
-            Message::Input(action) => {
-                let proxy = self.proxy.clone();
-                match action {
-                    Action::Path(p) => {
+            Message::Buffer(buffer) => {
+                match buffer {
+                    Buffer::Save { buffer, path } => match fs::write(path, buffer) {
+                        Ok(_) => {
+                            println!("SAVED!")
+                        }
+                        Err(_) => {
+                            println!("FILE PERMISSION ISSUE PROBABLY!")
+                        }
+                    },
+                    Buffer::Open(p) => {
+                        let proxy = self.proxy.clone();
                         thread::spawn(move || {
                             // println!("{}", p);
                             let path = Path::new(&p);
@@ -254,86 +276,12 @@ impl App {
                                         path: p,
                                         ext,
                                     }),
-                                    _ => Message::Buffer(Buffer::Error {
-                                        message: e.kind().to_string(),
-                                        path: p,
-                                    }),
+                                    _ => Message::Buffer(Buffer::Status(Err(e.to_string()))),
                                 },
                             };
                             to_string(&buffer).map(|json| proxy.send_event(Message::Eval(json)))
                         });
                     }
-                    Action::Shell(command) => match shell_words::split(&command) {
-                        Ok(cmd) => {
-                            let mut c = Command::new(&cmd[0]);
-                            for arg in &cmd[1..] {
-                                c.arg(arg);
-                            }
-                            c.stdout(Stdio::piped());
-                            c.stderr(Stdio::piped());
-                            let proxy = self.proxy.clone();
-                            thread::spawn(move || match c.spawn() {
-                                Ok(mut child) => {
-                                    let id = child.id();
-                                    if let Some(stdout) = child.stdout.take() {
-                                        let mut buf = BufReader::new(stdout);
-                                        for line in buf.lines() {
-                                            let msg = Message::Output(format!(
-                                                "[PID: {}][OK]: {}",
-                                                id,
-                                                line.unwrap()
-                                            ));
-                                            to_string(&msg)
-                                                .map(|json| proxy.send_event(Message::Eval(json)));
-                                        }
-                                    }
-
-                                    if let Some(stderr) = child.stderr.take() {
-                                        let mut buf = BufReader::new(stderr);
-                                        for line in buf.lines() {
-                                            let msg = Message::Output(format!(
-                                                "[PID: {}][ERROR]: {}",
-                                                id,
-                                                line.unwrap()
-                                            ));
-
-                                            to_string(&msg)
-                                                .map(|json| proxy.send_event(Message::Eval(json)));
-                                        }
-                                    }
-                                }
-                                Err(e) => {
-                                    let msg = Message::Output(format!(
-                                        "Error Occured for command: [{}] {}",
-                                        command,
-                                        e.to_string()
-                                    ));
-                                    to_string(&msg)
-                                        .map(|json| proxy.send_event(Message::Eval(json)));
-                                }
-                            });
-                        }
-                        Err(e) => {
-                            let msg = Message::Output(format!(
-                                "Invalid structure for: [{}] {}",
-                                command,
-                                e.to_string()
-                            ));
-                            to_string(&msg).map(|json| proxy.send_event(Message::Eval(json)));
-                        }
-                    },
-                }
-            }
-            Message::Buffer(buffer) => {
-                match buffer {
-                    Buffer::Edit { buffer, path } => match fs::write(path, buffer) {
-                        Ok(_) => {
-                            println!("SAVED!")
-                        }
-                        Err(_) => {
-                            println!("FILE PERMISSION ISSUE PROBABLY!")
-                        }
-                    },
                     _ => (),
                 }
                 // match buffer {
@@ -345,13 +293,15 @@ impl App {
             }
             Message::Eval(s) => match &mut self.context {
                 Some(c) => {
-                    // println!("{}", s);
                     c.webview
                         .evaluate_script(&format!("window.Editor.receive({})", s));
                 }
                 None => (),
             },
-            Message::Output(s) => todo!(),
+            Message::Module { key, data } => todo!(),
+            Message::Port { key, data } => (),
+            Message::Alias(_) => todo!(),
+            Message::Command(_) => todo!(),
         }
     }
 

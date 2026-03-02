@@ -1,8 +1,6 @@
-// import { html } from "lit-html";
-
 import { editor } from "monaco-editor";
 import type { Channel } from "./message_type";
-import { Meta, type MCommand } from "./meta";
+import { Meta } from "./meta";
 
 type Cmd = "/" | "$" | ":"
 type HistoryBuff = {
@@ -141,12 +139,12 @@ export class Command {
                 break
             case ":":
                 let [command, ...argv] = args.join("").trim().split(" ")
-                let mcommand = command as MCommand;
+                // let mcommand = command as MCommand;
                 this.channel({
                     tag: "LOCAL",
                     payload: {
                         action: "META",
-                        for: Meta[mcommand](argv.join(" "))
+                        for: Meta[command].proc(argv.join(" "))
                     }
                 })
                 break
