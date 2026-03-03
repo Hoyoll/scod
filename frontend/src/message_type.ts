@@ -1,5 +1,3 @@
-// import type { MAction, MTable } from "./meta"
-
 export type Message =
     | {
         tag: "WINDOW", payload:
@@ -21,18 +19,6 @@ export type Message =
             data: string
         }
     }
-    // | {
-    //     tag: "INPUT", payload:
-    //     | {
-    //         tag: "SHELL", payload: string
-    //     }
-    //     | {
-    //         tag: "PATH", payload: string
-    //     }
-    // }
-    // | {
-    //     tag: "OUTPUT", payload: string
-    // }
     | {
         tag: "BUFFER", payload:
         | {
@@ -46,12 +32,19 @@ export type Message =
             tag: "EDIT", payload: {
                 text: string,
                 path: string,
-                line: number,
-                column: number
+                /// IF you give it 0! it will default the LAST possible number of said line/column
+                line: {
+                    start: number,
+                    end: number
+                },
+                column: {
+                    start: number,
+                    end: number
+                }
             }
         }
         | {
-            tag: "SAVE", payload: {
+            tag: "WRITE", payload: {
                 buffer: string,
                 path: string
             }
@@ -70,6 +63,36 @@ export type Message =
         | {
             tag: "CLOSE"
         }
+        | {
+            tag: "SAVE", payload:
+            | {
+                for: "CURRENT"
+            }
+            | {
+                for: "PATH", path: string
+            }
+        }
+    }
+    | {
+        tag: "CURSOR", payload:
+        | {
+            /// shifting it around for n 
+            tag: "MOVE", payload: {
+                line: number
+                column: number
+            }
+        }
+        | {
+            /// moving around, jumping to n
+            tag: "JUMP", payload: {
+                line: number,
+                column: number
+            }
+        }
+        | {
+            /// it will just assume you want to insert in the cursor position
+            tag: "INSERT", payload: string
+        }
     }
     | {
         tag: "COMMAND", payload: string,
@@ -77,28 +100,6 @@ export type Message =
     | {
         tag: "ALIAS", payload: string
     }
-    | {
-        tag: "LOCAL", payload: Local
-    }
-
-export type Local =
-    // {
-    //     action: "FOCUS", for: Widget
-    // }
-    | {
-        action: "CLOSE", for: Widget
-    }
-    | {
-        action: "META", for: MAction
-    }
-// | {
-//     action: "COMMAND", for: string
-// }
-// | {
-//     action: "LOAD_ALIAS", for: string
-// }
-
-export type Widget = "EDITOR" | "COMMAND"
 
 export type Channel = (message: Message) => void
 
@@ -106,7 +107,6 @@ export type Port = {
     [key: string]: (data: any) => void
 }
 
-// export const Meta: MTable = {}
 export type MAction = () => void
 
 export type MTable = {
@@ -119,6 +119,7 @@ export type MTable = {
 export type Alias = {
     meta: MTable,
     port: Port
+    widget: HTMLElement | null
 }
 
 export function send(message: Message) {

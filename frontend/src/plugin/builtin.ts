@@ -1,4 +1,3 @@
-import { editor } from "monaco-editor";
 import type { Alias, Channel } from "../message_type";
 
 class Command {
@@ -14,8 +13,12 @@ class Command {
         }
     private channel: Channel
     constructor(channel: Channel) {
+
         this.channel = channel
         this.buffer = document.createElement("input");
+        // let app = document.querySelector("#widget")!
+        // app.appendChild(this.buffer)
+
         this.buffer.classList.add("command-buffer")
 
         this.buffer.addEventListener("keydown", (event) => {
@@ -70,10 +73,8 @@ class Command {
 
 }
 
-export function setup(editor: editor.IStandaloneCodeEditor, channel: Channel): Alias {
+export function setup(channel: Channel): Alias {
     let command = new Command(channel)
-    let app = document.querySelector("#widget")!
-    app.appendChild(command.getDomNode())
     return {
         meta: {
             "op": {
@@ -90,16 +91,13 @@ export function setup(editor: editor.IStandaloneCodeEditor, channel: Channel): A
             },
             "pe": {
                 desc: "Pushing edited buffer to the backend",
-                proc: () => {
+                proc: (arg: string) => {
                     return () => {
-                        let model = editor.getModel()!
-                        let [_, ...path] = model.uri.path
                         channel({
                             tag: "BUFFER", payload: {
-                                tag: "SAVE", payload: {
-                                    buffer: model.getValue(),
-                                    path: path.join("").trim()
-                                }
+                                tag: "SAVE", payload: arg
+                                    ? { for: "PATH", path: arg }
+                                    : { for: "CURRENT" }
                             }
                         })
                     }
@@ -118,37 +116,48 @@ export function setup(editor: editor.IStandaloneCodeEditor, channel: Channel): A
                 }
             },
             "to": {
-                desc: `Moving the cursor to the n position. Use case: :to 10`,
+                desc: `Moving the cursor to the n position. Use case: to 10`,
                 proc: (arg: string) => {
-                    let count = parseInt(arg)
                     return () => {
-                        let pos = editor.getPosition()!
-                        editor.setPosition({
-                            lineNumber: count,
-                            column: pos.column
-                        })
-                        editor.revealPosition({
-                            lineNumber: count,
-                            column: pos.column
+                        let [line, column = "0"] = arg.split(" ")
+                        let l = parseInt(line)
+                        if (isNaN(l)) {
+                            l = 0
+                        }
+                        let c = parseInt(column)
+                        if (isNaN(c)) {
+                            c = 0
+                        }
+                        channel({
+                            tag: "CURSOR", payload: {
+                                tag: "JUMP", payload: {
+                                    line: l,
+                                    column: c
+                                }
+                            }
                         })
                     }
                 }
             },
             "jm": {
-                desc: `Jumping line relative the argument provided. Use case: :jm 1 or :jm -1`,
+                desc: `Jumping line relative the argument provided. Use case: jm 1 or :jm -1`,
                 proc: (arg: string) => {
-                    let count = parseInt(arg)
-
                     return () => {
-                        let p = editor.getPosition()!
-                        let new_pos = p.lineNumber + count;
-                        editor.setPosition({
-                            lineNumber: new_pos,
-                            column: p.column
-                        })
-                        editor.revealPosition({
-                            lineNumber: new_pos,
-                            column: p.column
+                        let [line, column = "0"] = arg.split(" ")
+                        let l = parseInt(line)
+                        if (isNaN(l)) {
+                            l = 0
+                        }
+                        let c = parseInt(column)
+                        if (isNaN(c)) {
+                            c = 0
+                        }
+                        channel({
+                            tag: "CURSOR", payload: {
+                                tag: "MOVE", payload: {
+                                    line: l, column: c
+                                }
+                            }
                         })
                     }
                 }
@@ -167,7 +176,7 @@ export function setup(editor: editor.IStandaloneCodeEditor, channel: Channel): A
                 }
             },
             "la": {
-                desc: `Loading a new alias. Use case: :ls ./path/to/alias.js`,
+                desc: `Loading a new alias. Use case: ls ./path/to/alias.js`,
                 proc: (path: string) => {
                     return () => {
                         if (path) {
@@ -207,12 +216,17 @@ export function setup(editor: editor.IStandaloneCodeEditor, channel: Channel): A
                         tag: "EDIT", payload: {
                             text: data,
                             path: "shell.md",
-                            line: 0,
-                            column: 0
+                            line: {
+                                start: 0, end: 0
+                            },
+                            column: {
+                                start: 0, end: 0
+                            }
                         }
                     }
                 })
             }
-        }
+        },
+        widget: command.getDomNode()
     }
 }

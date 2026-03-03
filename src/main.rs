@@ -1,8 +1,6 @@
-use std::env::{current_dir, current_exe};
-
 use winit::{event_loop::EventLoop, window::WindowAttributes};
 
-use crate::app::{App, Meta};
+use crate::app::App;
 mod app;
 fn main() {
     let mut attr = WindowAttributes::default();
@@ -12,10 +10,6 @@ fn main() {
         context: None,
         proxy: event_loop.create_proxy(),
         attr,
-        meta: Meta {
-            c_exe: current_exe().unwrap(),
-            c_dir: current_dir().unwrap(),
-        },
     };
     event_loop.run_app(&mut app);
 }

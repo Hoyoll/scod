@@ -6,6 +6,7 @@ import nightowl from "./night-owl.json";
 import './style.css';
 
 let doc = document.querySelector<HTMLDivElement>('#app')!
+let widget = document.querySelector<HTMLDivElement>("#widget")!
 editor.defineTheme("nightowl", {
   base: 'hc-black',
   inherit: nightowl.inherit,
@@ -13,5 +14,5 @@ editor.defineTheme("nightowl", {
   colors: nightowl.colors
 })
 
-let edit = new Editor(doc)
+let edit = new Editor(doc, widget)
 window.Editor = edit

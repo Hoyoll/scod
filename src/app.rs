@@ -3,7 +3,6 @@ use serde_json::{from_str, to_string};
 use std::{
     borrow::Cow,
     env,
-    fmt::Debug,
     fs::{self, read},
     io::{BufRead, BufReader, ErrorKind},
     path::{Path, PathBuf},
@@ -83,8 +82,6 @@ fn mime_from_extension(ext: &str) -> &'static str {
 #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
 pub enum Message {
     Window(Win),
-    // Input(Action),
-    // Output(String),
     Buffer(Buffer),
     Module {
         key: String,
@@ -96,17 +93,11 @@ pub enum Message {
     },
     Alias(String),
     Command(String),
+    Cursor(Cursor),
     #[serde(skip_serializing, skip_deserializing)]
     /// The String here IS a serialized Message!
     Eval(String),
 }
-
-// #[derive(Deserialize, Serialize)]
-// #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
-// pub enum Error<T> {
-//     Error(T),
-//     Ok(T),
-// }
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "tag", rename_all = "UPPERCASE")]
@@ -119,6 +110,14 @@ pub enum Win {
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
+pub enum Cursor {
+    Move { line: i32, column: i32 },
+    Jump { line: i32, column: i32 },
+    Insert(String),
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
 pub enum Buffer {
     New {
         buffer: String,
@@ -126,42 +125,35 @@ pub enum Buffer {
         path: String,
         ext: String,
     },
-    /// To keep it simple, number < 1 WILL automatically resolve into the back of column/line
+    /// To keep it simple, number == 0 WILL automatically resolve into the back of column/line
     Edit {
         text: String,
         path: String,
-        line: i32,
-        column: i32,
+        line: Position<i32>,
+        column: Position<i32>,
     },
-    Save {
+    Write {
         buffer: String,
         path: String,
     },
     Open(String),
     Status(Result<String, String>),
     Focus,
+    Close,
+    Save(Save),
 }
 
 #[derive(Deserialize, Serialize)]
-#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
-pub enum Pos {
-    Last,
-    Coord { column: usize, line: usize },
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "UPPERCASE", tag = "tag", content = "payload")]
-pub enum Action {
-    Shell(String),
-    /// The STRING LOOKS like THIS: "path/to/file.txt"!
+#[serde(tag = "for", content = "path", rename_all = "UPPERCASE")]
+pub enum Save {
+    Current,
     Path(String),
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "UPPERCASE", untagged)]
-pub enum Dir {
-    In,
-    Out,
+#[derive(Deserialize, Serialize)]
+pub struct Position<T> {
+    pub start: T,
+    pub end: T,
 }
 
 pub struct Context {
@@ -170,16 +162,10 @@ pub struct Context {
     pub scale: f64,
 }
 
-pub struct Meta {
-    pub c_exe: PathBuf,
-    pub c_dir: PathBuf,
-}
-
 pub struct App {
     pub context: Option<Context>,
     pub proxy: EventLoopProxy<Message>,
     pub attr: WindowAttributes,
-    pub meta: Meta,
 }
 
 impl App {
@@ -244,7 +230,7 @@ impl App {
                 }
             },
             Message::Buffer(buffer) => match buffer {
-                Buffer::Save { buffer, path } => match fs::write(path, buffer) {
+                Buffer::Write { buffer, path } => match fs::write(path, buffer) {
                     Ok(_) => {
                         println!("SAVED!")
                     }
@@ -357,6 +343,7 @@ impl App {
             Message::Port { .. } => (),
             Message::Alias(_) => todo!(),
             Message::Command(_) => todo!(),
+            Message::Cursor(_) => todo!(),
         }
     }
 
