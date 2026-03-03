@@ -61,7 +61,6 @@ export class Editor {
             snippetSuggestions: "none"
 
         })
-        // this.editor.setModel(this.buffer.get_man())
         this.setup_widget()
         // this.editor.setModel(null)
         // this.receive({
@@ -81,20 +80,9 @@ export class Editor {
             tag: "ALIAS", payload: "./plugin/builtin.ts"
         })
 
-        this.receive({
-            tag: "ALIAS", payload: "./plugin/builtin.js"
-        })
-
         // this.receive({
-        //     tag: "OUTPUT", payload: "Scod is ready to use!"
+        //     tag: "ALIAS", payload: "./plugin/builtin.js"
         // })
-
-        // this.receive({
-        //     tag: "INPUT", payload: {
-        //         tag: "PATH", payload: "*shell.md"
-        //     }
-        // })
-        // this.editor.addOverlayWidget(this.command)
     }
 
     private send(message: Message) {
@@ -104,62 +92,15 @@ export class Editor {
     public receive(message: Message) {
         console.log(message)
         switch (message.tag) {
+            case "WINDOW":
+                this.send(message)
+                break
             case 'MODULE':
                 this.send(message)
                 break
             case 'PORT':
                 this.port[message.payload.key](message.payload.data)
                 break
-            // case 
-            // case "INPUT":
-            //     switch (message.payload.tag) {
-            //         case "SHELL":
-            //             this.send(message)
-            //             break
-            //         case "PATH":
-            //             this.buffer.find(message.payload.payload, {
-            //                 ok: (model) => {
-            //                     let mo = this.editor.getModel()!
-            //                     let [_, ...rest] = mo.uri.path
-            //                     this.buffer.set_vs(rest.join(""), this.editor.saveViewState())
-            //                     this.editor.setModel(model.model)
-            //                     this.editor.restoreViewState(model.view_state)
-            //                     this.command.focus()
-            //                 },
-            //                 err: () => {
-
-            //                     this.send(message)
-            //                 }
-            //             })
-            //             break
-            //     }
-            //     break
-            // case "OUTPUT":
-            //     this.buffer.find("*shell.md", {
-            //         ok: (model) => {
-            //             let mo = model.model
-            //             let last_line = mo.getLineCount();
-            //             let last_column = mo.getLineMaxColumn(last_line);
-            //             mo.pushEditOperations(
-            //                 null,
-            //                 [{
-            //                     range: {
-            //                         startLineNumber: last_line,
-            //                         startColumn: last_column,
-            //                         endLineNumber: last_line,
-            //                         endColumn: last_column
-            //                     },
-            //                     text: message.payload + `\n`
-            //                 }],
-            //                 () => null
-            //             )
-            //         },
-            //         err: () => {
-            //             this.buffer.register("*shell.md", "", "markdown")
-            //             this.receive(message)
-            //         }
-            //     })
-            //     break
             case "BUFFER":
                 switch (message.payload.tag) {
                     case "NEW":
@@ -176,17 +117,30 @@ export class Editor {
                     case "OPEN":
                         this.buffer.find(message.payload.payload, {
                             ok: (model) => {
-                                let mo = this.editor.getModel()!
-                                let [_, ...rest] = mo.uri.path
-                                this.buffer.set_vs(rest.join(""), this.editor.saveViewState())
+                                let mo = this.editor.getModel()
+                                if (mo) {
+                                    let [_, ...rest] = mo.uri.path
+                                    this.buffer.set_vs(rest.join(""), this.editor.saveViewState())
+                                }
+                                // console.log(model)
                                 this.editor.setModel(model.model)
                                 this.editor.restoreViewState(model.view_state)
-                                // this.command.focus()
                             },
                             err: () => {
                                 this.send(message)
                             }
                         })
+                        break
+                    case "FOCUS":
+                        this.editor.focus()
+                        break
+                    case "CLOSE":
+                        let m = this.editor.getModel()
+                        if (m) {
+                            let [_, ...rest] = m.uri.path
+                            this.buffer.delete(rest.join(""))
+                        }
+                        m?.dispose()
                         break
                     case "STATUS":
                         // this.receive({})
@@ -198,11 +152,11 @@ export class Editor {
                         let text = message.payload.payload.text
                         this.buffer.find(path, {
                             ok: (model) => {
-                                if (line === -1) {
+                                if (line < 1) {
                                     line = model.model.getLineCount()
                                 }
 
-                                if (column === -1) {
+                                if (column < 1) {
                                     column = model.model.getLineMaxColumn(model.model.getLineCount())
                                 }
                                 model.model.pushEditOperations(
@@ -220,12 +174,12 @@ export class Editor {
                                 )
                             },
                             err: () => {
-                                this.receive({
-                                    tag: "BUFFER", payload: {
-                                        tag: "OPEN", payload: path
-                                    }
-                                })
-                                this.receive(message)
+                                // this.send({
+                                //     tag: "BUFFER", payload: {
+                                //         tag: "OPEN", payload: path
+                                //     }
+                                // })
+                                // this.receive(message)
                             }
                         })
                         break
@@ -234,12 +188,14 @@ export class Editor {
             // case "WINDOW":
             case "COMMAND":
                 let [current_cmd, ...args] = message.payload.trim().split(" ")
-                this.meta[current_cmd].proc(args.join(" "))
+                this.meta[current_cmd].proc(args.join(" "))()
 
                 break
-            case "LOAD_ALIAS":
+            case "ALIAS":
                 import(message.payload).then((plugin) => {
-                    let al = plugin.setup(this.editor, this.channel) as Alias
+                    let al = plugin.setup(this.editor, (msg: Message) => {
+                        this.receive(msg)
+                    }) as Alias
                     if (al) {
                         for (const key in al.meta) {
                             this.meta[key] = al.meta[key]
@@ -262,21 +218,21 @@ export class Editor {
                     //             break
                     //     }
                     //     break
-                    case "CLOSE":
-                        switch (message.payload.for) {
-                            case "EDITOR":
-                                let m = this.editor.getModel()
-                                // this.receive({
-                                //     tag: ""
-                                // })
-                                console.log("TO-DO!")
-                                m?.dispose()
-                                break
-                            case "COMMAND":
-                                this.editor.focus()
-                                break
-                        }
-                        break
+                    // case "CLOSE":
+                    //     switch (message.payload.for) {
+                    //         case "EDITOR":
+                    //             let m = this.editor.getModel()
+                    //             // this.receive({
+                    //             //     tag: ""
+                    //             // })
+                    //             console.log("TO-DO!")
+                    //             m?.dispose()
+                    //             break
+                    //         case "COMMAND":
+                    //             this.editor.focus()
+                    //             break
+                    //     }
+                    //     break
                     // case "META":
                     //     message.payload.for()
                     // break

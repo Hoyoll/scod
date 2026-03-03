@@ -23,7 +23,7 @@ export class ABuffer {
     }
 
     public delete(key: string) {
-
+        this.buffer.delete(key)
     }
 
     public find(key: string, closure: Result<{

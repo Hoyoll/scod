@@ -126,7 +126,7 @@ pub enum Buffer {
         path: String,
         ext: String,
     },
-    /// To keep it simple, -1 WILL automatically resolve into the back of column/line
+    /// To keep it simple, number < 1 WILL automatically resolve into the back of column/line
     Edit {
         text: String,
         path: String,
@@ -139,6 +139,7 @@ pub enum Buffer {
     },
     Open(String),
     Status(Result<String, String>),
+    Focus,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -183,7 +184,6 @@ pub struct App {
 
 impl App {
     fn create_context(&mut self, event_loop: &ActiveEventLoop) {
-        // let c = Command::new("echo").arg("arg").spawn()
         let mut attr = self.attr.clone();
         attr.visible = false;
         let proxy = self.proxy.clone();
@@ -194,12 +194,10 @@ impl App {
                 } else {
                     from_str(m.body()).map(|msg: Message| proxy.send_event(msg));
                 }
-                // proxy.send_event(from_str(m.body()).unwrap());
             },
         );
 
         let window = event_loop.create_window(attr).unwrap();
-        // window.set_maximized(true);
         let webview = if cfg!(debug_assertions) {
             webview_builder
                 .with_url("http://localhost:5173/")
@@ -245,52 +243,43 @@ impl App {
                     }
                 }
             },
-            Message::Buffer(buffer) => {
-                match buffer {
-                    Buffer::Save { buffer, path } => match fs::write(path, buffer) {
-                        Ok(_) => {
-                            println!("SAVED!")
-                        }
-                        Err(_) => {
-                            println!("FILE PERMISSION ISSUE PROBABLY!")
-                        }
-                    },
-                    Buffer::Open(p) => {
-                        let proxy = self.proxy.clone();
-                        thread::spawn(move || {
-                            // println!("{}", p);
-                            let path = Path::new(&p);
-                            let ext = match path.extension() {
-                                Some(e) => e.to_string_lossy().to_string(),
-                                None => "".to_string(),
-                            };
-                            let buffer = match fs::read_to_string(path) {
-                                Ok(value) => Message::Buffer(Buffer::New {
-                                    buffer: value,
+            Message::Buffer(buffer) => match buffer {
+                Buffer::Save { buffer, path } => match fs::write(path, buffer) {
+                    Ok(_) => {
+                        println!("SAVED!")
+                    }
+                    Err(_) => {
+                        println!("FILE PERMISSION ISSUE PROBABLY!")
+                    }
+                },
+                Buffer::Open(p) => {
+                    let proxy = self.proxy.clone();
+                    thread::spawn(move || {
+                        let path = Path::new(&p);
+                        let ext = match path.extension() {
+                            Some(e) => e.to_string_lossy().to_string(),
+                            None => "".to_string(),
+                        };
+                        let buffer = match fs::read_to_string(path) {
+                            Ok(value) => Message::Buffer(Buffer::New {
+                                buffer: value,
+                                path: p,
+                                ext,
+                            }),
+                            Err(e) => match e.kind() {
+                                ErrorKind::NotFound => Message::Buffer(Buffer::New {
+                                    buffer: String::new(),
                                     path: p,
                                     ext,
                                 }),
-                                Err(e) => match e.kind() {
-                                    ErrorKind::NotFound => Message::Buffer(Buffer::New {
-                                        buffer: String::new(),
-                                        path: p,
-                                        ext,
-                                    }),
-                                    _ => Message::Buffer(Buffer::Status(Err(e.to_string()))),
-                                },
-                            };
-                            to_string(&buffer).map(|json| proxy.send_event(Message::Eval(json)))
-                        });
-                    }
-                    _ => (),
+                                _ => Message::Buffer(Buffer::Status(Err(e.to_string()))),
+                            },
+                        };
+                        to_string(&buffer).map(|json| proxy.send_event(Message::Eval(json)))
+                    });
                 }
-                // match buffer {
-                // Buffer::Ok { buffer, path, ext } => {}
-                // Buffer::New { path, ext } => todo!(),
-                // Buffer::Error(_) => todo!(),
-
-                // }
-            }
+                _ => (),
+            },
             Message::Eval(s) => match &mut self.context {
                 Some(c) => {
                     c.webview
@@ -298,8 +287,74 @@ impl App {
                 }
                 None => (),
             },
-            Message::Module { key, data } => todo!(),
-            Message::Port { key, data } => (),
+            Message::Module { key, data } => match key.as_str() {
+                "SHELL" => match shell_words::split(&data) {
+                    Ok(cmd) => {
+                        if cmd.is_empty() {
+                            let msg = Message::Port {
+                                key: "SHELL".to_string(),
+                                data: "Error: Empty command!".to_string(),
+                            };
+                            to_string(&msg).map(|json| self.proxy.send_event(Message::Eval(json)));
+                            return;
+                        }
+                        let mut c = Command::new(&cmd[0]);
+                        for arg in &cmd[1..] {
+                            c.arg(arg);
+                        }
+                        c.stdout(Stdio::piped());
+                        c.stderr(Stdio::piped());
+                        let proxy = self.proxy.clone();
+                        thread::spawn(move || match c.spawn() {
+                            Ok(mut child) => {
+                                let id = child.id();
+                                if let Some(stdout) = child.stdout.take() {
+                                    let mut buf = BufReader::new(stdout);
+                                    for line in buf.lines() {
+                                        let msg = Message::Port {
+                                            key: "SHELL".to_string(),
+                                            data: format!("[PID: {}][OK]: {}", id, line.unwrap()),
+                                        };
+                                        to_string(&msg)
+                                            .map(|json| proxy.send_event(Message::Eval(json)));
+                                    }
+                                }
+
+                                if let Some(stderr) = child.stderr.take() {
+                                    let mut buf = BufReader::new(stderr);
+                                    for line in buf.lines() {
+                                        let msg = Message::Port {
+                                            key: "SHELL".to_string(),
+                                            data: format!(
+                                                "[PID: {}][ERROR]: {}",
+                                                id,
+                                                line.unwrap()
+                                            ),
+                                        };
+
+                                        to_string(&msg)
+                                            .map(|json| proxy.send_event(Message::Eval(json)));
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                let msg = Message::Port {
+                                    key: "SHELL".to_string(),
+                                    data: format!(
+                                        "Error Occured for command: [{}] {}",
+                                        data,
+                                        e.to_string()
+                                    ),
+                                };
+                                to_string(&msg).map(|json| proxy.send_event(Message::Eval(json)));
+                            }
+                        });
+                    }
+                    Err(err) => {}
+                },
+                _ => (),
+            },
+            Message::Port { .. } => (),
             Message::Alias(_) => todo!(),
             Message::Command(_) => todo!(),
         }

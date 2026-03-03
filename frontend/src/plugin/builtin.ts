@@ -64,29 +64,16 @@ class Command {
         }
         return num
     }
-    // public focus() {
-    //     this.buffer.focus()
-    // }
-
-    getId(): string {
-        return "scod.command"
-    }
-
     getDomNode(): HTMLElement {
         return this.buffer
-    }
-
-    getPosition(): editor.IOverlayWidgetPosition | null {
-        return {
-            preference: editor.OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
-        }
     }
 
 }
 
 export function setup(editor: editor.IStandaloneCodeEditor, channel: Channel): Alias {
     let command = new Command(channel)
-    editor.addOverlayWidget(command)
+    let app = document.querySelector("#widget")!
+    app.appendChild(command.getDomNode())
     return {
         meta: {
             "op": {
@@ -123,8 +110,8 @@ export function setup(editor: editor.IStandaloneCodeEditor, channel: Channel): A
                 proc: () => {
                     return () => {
                         channel({
-                            tag: "LOCAL", payload: {
-                                for: "EDITOR", action: "CLOSE"
+                            tag: "BUFFER", payload: {
+                                tag: "CLOSE"
                             }
                         })
                     }
@@ -148,7 +135,6 @@ export function setup(editor: editor.IStandaloneCodeEditor, channel: Channel): A
                 }
             },
             "jm": {
-
                 desc: `Jumping line relative the argument provided. Use case: :jm 1 or :jm -1`,
                 proc: (arg: string) => {
                     let count = parseInt(arg)
@@ -196,6 +182,14 @@ export function setup(editor: editor.IStandaloneCodeEditor, channel: Channel): A
                 desc: "Sending an actual shell command to the backend",
                 proc: (shell: string) => {
                     return () => {
+                        if (shell === "") {
+                            return
+                        }
+                        channel({
+                            tag: "BUFFER", payload: {
+                                tag: "OPEN", payload: "shell.md"
+                            }
+                        })
                         channel({
                             tag: "MODULE", payload: {
                                 key: "SHELL",
@@ -212,9 +206,9 @@ export function setup(editor: editor.IStandaloneCodeEditor, channel: Channel): A
                     tag: "BUFFER", payload: {
                         tag: "EDIT", payload: {
                             text: data,
-                            path: "*shell.md",
-                            line: -1,
-                            column: -1
+                            path: "shell.md",
+                            line: 0,
+                            column: 0
                         }
                     }
                 })

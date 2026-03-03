@@ -1,4 +1,4 @@
-import type { MAction, MTable } from "./meta"
+// import type { MAction, MTable } from "./meta"
 
 export type Message =
     | {
@@ -63,6 +63,12 @@ export type Message =
             tag: "STATUS", payload: {
                 tag: "OK" | "ERR", payload: string
             }
+        }
+        | {
+            tag: "FOCUS"
+        }
+        | {
+            tag: "CLOSE"
         }
     }
     | {

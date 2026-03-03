@@ -35,7 +35,8 @@ body {
   height: 100%;
   max-width: 100%;
   max-height: 100%;
-  overflow: hidden !important;
+  background-color: #10141C;
+  /* overflow: hidden !important; */
 }
 
 .widget-wrapper {
@@ -56,6 +57,10 @@ body {
   width: 100%;
   padding: 0 5px;
   height: 20px;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  border: 0;
   /* border-color: #10141C; */
   background: #10141C;
   outline: none;
@@ -67,6 +72,7 @@ body {
 .command-buffer:focus {
   outline: none !important;
   border: 0;
+  opacity: 1;
   border-color: inherit;
   box-shadow: none;
 }
