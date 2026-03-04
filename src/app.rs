@@ -347,9 +347,7 @@ impl App {
         }
     }
 
-    fn handle_window_event(&self, event: WindowEvent, event_loop: &ActiveEventLoop) {
-        // self.handle_window(event, event_loop);
-    }
+    fn handle_window_event(&self, event: WindowEvent, event_loop: &ActiveEventLoop) {}
 }
 
 impl ApplicationHandler<Message> for App {

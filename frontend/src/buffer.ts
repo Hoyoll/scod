@@ -26,6 +26,16 @@ export class ABuffer {
         this.buffer.delete(key)
     }
 
+    public get_last(closure: Result<string, void>) {
+        let a = Array.from(this.buffer)
+        let ab = a.at(-1)
+        if (ab) {
+            closure.ok(ab[0])
+        } else {
+            closure.err()
+        }
+    }
+
     public find(key: string, closure: Result<{
         model: editor.ITextModel,
         view_state: null | editor.ICodeEditorViewState

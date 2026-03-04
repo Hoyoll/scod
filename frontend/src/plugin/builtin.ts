@@ -1,3 +1,4 @@
+import { editor, KeyCode, KeyMod } from "monaco-editor";
 import type { Alias, Channel } from "../message_type";
 
 class Command {
@@ -16,9 +17,6 @@ class Command {
 
         this.channel = channel
         this.buffer = document.createElement("input");
-        // let app = document.querySelector("#widget")!
-        // app.appendChild(this.buffer)
-
         this.buffer.classList.add("command-buffer")
 
         this.buffer.addEventListener("keydown", (event) => {
@@ -39,15 +37,21 @@ class Command {
                     }
 
                     break
-                case "Enter":
-                    this.history.table.delete(this.buffer.value)
-                    this.history.table.add(this.buffer.value)
-                    this.history.stack = Array.from(this.history.table.keys())
+                case "Enter": const value = this.buffer.value
+                    this.history.stack = this.history.stack.filter(v => v !== value)
+                    this.history.stack.push(value)
                     this.history.idx = this.history.stack.length - 1
                     this.channel({
                         tag: "COMMAND", payload: this.buffer.value
                     })
                     this.buffer.focus()
+                    break
+                case "Escape":
+                    this.channel({
+                        tag: "BUFFER", payload: {
+                            tag: "FOCUS"
+                        }
+                    })
                     break
             }
         })
@@ -71,6 +75,19 @@ class Command {
         return this.buffer
     }
 
+    getId(): string {
+        return "scod:command"
+    }
+
+    getPosition(): editor.IOverlayWidgetPosition | null {
+        return {
+            preference: editor.OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
+        }
+    }
+
+    public focus() {
+        this.buffer.focus()
+    }
 }
 
 export function setup(channel: Channel): Alias {
@@ -162,8 +179,20 @@ export function setup(channel: Channel): Alias {
                     }
                 }
             },
+            "fc": {
+                desc: "focus to editor",
+                proc: () => {
+                    return () => {
+                        channel({
+                            tag: "BUFFER", payload: {
+                                tag: "FOCUS"
+                            }
+                        })
+                    }
+                }
+            },
             "cs": {
-                desc: `Command Sequence! You can send multiple commands with this! Use case: :cs $ echo hello, $ echo world!`,
+                desc: `Command Sequence! You can send multiple commands with this! Use case: cs sh echo hello, echo world!`,
                 proc: (arg: string) => {
                     let args = arg.split(",")
                     return () => {
@@ -195,11 +224,6 @@ export function setup(channel: Channel): Alias {
                             return
                         }
                         channel({
-                            tag: "BUFFER", payload: {
-                                tag: "OPEN", payload: "shell.md"
-                            }
-                        })
-                        channel({
                             tag: "MODULE", payload: {
                                 key: "SHELL",
                                 data: shell
@@ -225,8 +249,56 @@ export function setup(channel: Channel): Alias {
                         }
                     }
                 })
+                command.focus()
             }
         },
-        widget: command.getDomNode()
+        widget: command,
+        onload: () => {
+            channel(({ tag: "COMMAND", payload: "op shell.md" }))
+            editor.addCommand({
+                id: "open-command",
+                run: () => {
+                    command.focus()
+                }
+            })
+
+            editor.addKeybindingRule({
+                keybinding: KeyMod.Alt | KeyCode.Period,
+                command: "open-command"
+            })
+
+            editor.addCommand({
+                id: "zoom-in",
+                run: () => {
+                    channel({
+                        tag: "WINDOW", payload: {
+                            tag: "ZOOMIN"
+                        }
+                    })
+                }
+            })
+
+            editor.addKeybindingRule({
+                keybinding: KeyMod.CtrlCmd | KeyCode.Equal,
+                command: "zoom-in"
+            })
+
+            editor.addCommand({
+                id: "zoom-out",
+                run: () => {
+                    channel({
+                        tag: "WINDOW", payload: {
+                            tag: "ZOOMOUT"
+                        }
+                    })
+                }
+            })
+
+
+            editor.addKeybindingRule({
+                keybinding: KeyMod.CtrlCmd | KeyCode.Minus,
+                command: "zoom-out"
+            })
+        }
     }
 }

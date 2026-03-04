@@ -1,3 +1,5 @@
+import type { editor } from "monaco-editor"
+
 export type Message =
     | {
         tag: "WINDOW", payload:
@@ -90,6 +92,18 @@ export type Message =
             }
         }
         | {
+            tag: "SELECT", payload: {
+                line: {
+                    start: number,
+                    end: number
+                },
+                column: {
+                    start: number,
+                    end: number
+                }
+            }
+        }
+        | {
             /// it will just assume you want to insert in the cursor position
             tag: "INSERT", payload: string
         }
@@ -119,8 +133,10 @@ export type MTable = {
 export type Alias = {
     meta: MTable,
     port: Port
-    widget: HTMLElement | null
+    widget: editor.IOverlayWidget | null
+    onload: ((current_editor: editor.IStandaloneCodeEditor) => void) | null
 }
+
 
 export function send(message: Message) {
     window.ipc.postMessage(JSON.stringify(message))

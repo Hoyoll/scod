@@ -70,7 +70,7 @@ body {
 }
 
 .command-buffer:focus {
-  outline: none !important;
+  background: #121720;
   border: 0;
   opacity: 1;
   border-color: inherit;

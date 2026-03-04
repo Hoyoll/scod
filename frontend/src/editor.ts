@@ -8,10 +8,10 @@ export class Editor {
     private editor: editor.IStandaloneCodeEditor
     private port: Port = {}
     private meta: MTable = {}
-    private widget: HTMLElement
-    constructor(doc: HTMLDivElement, widget: HTMLElement) {
+    // private widget: HTMLElement
+    constructor(doc: HTMLDivElement) {
         this.buffer = new ABuffer()
-        this.widget = widget
+        // this.widget = widget
         this.editor = editor.create(doc, {
             value: undefined,
             language: undefined,
@@ -56,6 +56,7 @@ export class Editor {
         })
         this.setup_widget()
         this.send({ tag: "WINDOW", payload: { tag: "READY" } })
+
         console.log("setup finished!")
     }
 
@@ -63,6 +64,11 @@ export class Editor {
         /// this is for dev mode XD
         this.receive({
             tag: "ALIAS", payload: "./plugin/builtin.ts"
+        })
+        this.receive({
+            tag: "BUFFER", payload: {
+                tag: "FOCUS"
+            }
         })
     }
 
@@ -156,10 +162,28 @@ export class Editor {
                         if (m) {
                             let [_, ...rest] = m.uri.path
                             this.buffer.delete(rest.join(""))
+                            this.buffer.get_last({
+                                ok: (file) => {
+                                    this.receive({
+                                        tag: "BUFFER", payload: {
+                                            tag: "OPEN", payload: file
+                                        }
+                                    })
+                                },
+                                err: () => {
+                                    this.receive({
+                                        tag: "BUFFER", payload: {
+                                            tag: "OPEN", payload: "fallback.md"
+                                        }
+                                    })
+                                }
+                            })
+                            m.dispose()
+
                         }
-                        m?.dispose()
                         break
                     case "STATUS":
+                        // this.editor.addOverlayWidget()
                         console.log("TO-DO")
 
                         break
@@ -224,7 +248,12 @@ export class Editor {
                             this.port[key] = al.port[key]
                         }
                         if (al.widget) {
-                            this.widget.appendChild(al.widget)
+                            this.editor.addOverlayWidget(al.widget)
+                            // this.widget.appendChild(al.widget)
+                        }
+
+                        if (al.onload) {
+                            al.onload(this.editor)
                         }
                     }
                 })
@@ -251,6 +280,15 @@ export class Editor {
                         this.editor.revealPosition({
                             lineNumber: message.payload.payload.line,
                             column: message.payload.payload.column
+                        })
+                        break
+                    case "SELECT":
+                        // this.editor.setSele
+                        this.editor.setSelection({
+                            startLineNumber: message.payload.payload.line.start,
+                            endLineNumber: message.payload.payload.line.end,
+                            startColumn: message.payload.payload.column.start,
+                            endColumn: message.payload.payload.column.end
                         })
                         break
                     case "INSERT":
