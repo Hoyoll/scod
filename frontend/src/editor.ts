@@ -2,6 +2,7 @@ import { editor } from "monaco-editor"
 import { ABuffer } from "./buffer"
 import { Ext } from "./language"
 import { type Alias, type Message, type MTable, type Port } from "./message_type"
+import { setup } from "./widget/command"
 
 export class Editor {
     private buffer: ABuffer
@@ -61,10 +62,25 @@ export class Editor {
     }
 
     private setup_widget() {
-        /// this is for dev mode XD
-        this.receive({
-            tag: "ALIAS", payload: "./plugin/builtin.ts"
+        let al = setup((msg) => {
+            this.receive(msg)
         })
+
+        if (al) {
+            for (const key in al.meta) {
+                this.meta[key] = al.meta[key]
+            }
+            for (const key in al.port) {
+                this.port[key] = al.port[key]
+            }
+            if (al.widget) {
+                this.editor.addOverlayWidget(al.widget)
+            }
+
+            if (al.onload) {
+                al.onload(this.editor)
+            }
+        }
         this.receive({
             tag: "BUFFER", payload: {
                 tag: "FOCUS"
@@ -249,7 +265,6 @@ export class Editor {
                         }
                         if (al.widget) {
                             this.editor.addOverlayWidget(al.widget)
-                            // this.widget.appendChild(al.widget)
                         }
 
                         if (al.onload) {

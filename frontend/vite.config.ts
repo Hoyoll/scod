@@ -1,5 +1,16 @@
 import { defineConfig } from "vite";
 export default defineConfig({
+    // build: {
+    //     rollupOptions: {
+    //         preserveEntrySignatures: 'strict',
+    //         output: {
+    //             preserveModules: true,
+    //             preserveModulesRoot: 'src',
+    //             entryFileNames: '[name].js'
+    //         }
+
+    //     }
+    // }
     // optimizeDeps: {
     //     include: ['monaco-editor']
     // },
