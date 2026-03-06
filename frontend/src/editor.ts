@@ -1,5 +1,6 @@
 import { editor } from "monaco-editor"
 import { ABuffer } from "./buffer"
+import { setup as ayu_dark } from "./colorscheme/ayu-dark"
 import { Ext } from "./language"
 import { type Alias, type Message, type MTable, type Port } from "./message_type"
 import { setup } from "./widget/command"
@@ -21,7 +22,7 @@ export class Editor {
             minimap: { enabled: false },
             overviewRulerLanes: 0,
             overviewRulerBorder: false,
-            theme: "nightowl",
+            theme: "vs-dark",
             renderLineHighlight: 'none',
             selectionHighlight: false,
             occurrencesHighlight: "off",
@@ -57,35 +58,28 @@ export class Editor {
         })
         this.setup_widget()
         this.send({ tag: "WINDOW", payload: { tag: "READY" } })
-
-        console.log("setup finished!")
+        // this.default()
+        // console.log("setup finished!")
     }
 
     private setup_widget() {
-        let al = setup((msg) => {
-            this.receive(msg)
-        })
-
-        if (al) {
-            for (const key in al.meta) {
-                this.meta[key] = al.meta[key]
-            }
-            for (const key in al.port) {
-                this.port[key] = al.port[key]
-            }
-            if (al.widget) {
-                this.editor.addOverlayWidget(al.widget)
-            }
-
-            if (al.onload) {
-                al.onload(this.editor)
-            }
-        }
         this.receive({
             tag: "BUFFER", payload: {
                 tag: "FOCUS"
             }
         })
+    }
+
+    public default() {
+        let al = setup((msg) => {
+            this.receive(msg)
+        })
+        this.setup_alias(al)
+        let ayu = ayu_dark((msg) => {
+            this.receive(msg)
+        })
+        this.setup_alias(ayu)
+
     }
 
     private send(message: Message) {
@@ -102,7 +96,7 @@ export class Editor {
                 this.send(message)
                 break
             case 'PORT':
-                this.port[message.payload.key](message.payload.data)
+                this.port[message.payload.key](message.payload.data, this.editor)
                 break
             case "BUFFER":
                 switch (message.payload.tag) {
@@ -164,6 +158,12 @@ export class Editor {
                                 }
                                 this.editor.setModel(model.model)
                                 this.editor.restoreViewState(model.view_state)
+
+                                this.receive({
+                                    tag: "BUFFER", payload: {
+                                        tag: "FOCUS"
+                                    }
+                                })
                             },
                             err: () => {
                                 this.send(message)
@@ -248,7 +248,7 @@ export class Editor {
             // case "WINDOW":
             case "COMMAND":
                 let [current_cmd, ...args] = message.payload.trim().split(" ")
-                this.meta[current_cmd].proc(args.join(" "))()
+                this.meta[current_cmd]?.proc(args.join(" "))()
 
                 break
             case "ALIAS":
@@ -257,19 +257,7 @@ export class Editor {
                         this.receive(msg)
                     }) as Alias
                     if (al) {
-                        for (const key in al.meta) {
-                            this.meta[key] = al.meta[key]
-                        }
-                        for (const key in al.port) {
-                            this.port[key] = al.port[key]
-                        }
-                        if (al.widget) {
-                            this.editor.addOverlayWidget(al.widget)
-                        }
-
-                        if (al.onload) {
-                            al.onload(this.editor)
-                        }
+                        this.setup_alias(al)
                     }
                 })
                 break
@@ -330,6 +318,23 @@ export class Editor {
                 }
                 break
         }
+    }
+
+    private setup_alias(alias: Alias) {
+        for (const key in alias.meta) {
+            this.meta[key] = alias.meta[key]
+        }
+        for (const key in alias.port) {
+            this.port[key] = alias.port[key]
+        }
+        if (alias.widget) {
+            this.editor.addOverlayWidget(alias.widget)
+        }
+
+        if (alias.onload) {
+            alias.onload(this.editor)
+        }
+        // }
     }
 
 }

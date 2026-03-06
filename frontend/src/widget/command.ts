@@ -37,7 +37,11 @@ class Command {
                     }
 
                     break
-                case "Enter": const value = this.buffer.value
+                case "Enter":
+                    const value = this.buffer.value
+                    if (!value) {
+                        return
+                    }
                     this.history.stack = this.history.stack.filter(v => v !== value)
                     this.history.stack.push(value)
                     this.history.idx = this.history.stack.length - 1
@@ -253,52 +257,29 @@ export function setup(channel: Channel): Alias {
             }
         },
         widget: command,
-        onload: () => {
+        onload: (ed) => {
             channel(({ tag: "COMMAND", payload: "op shell.md" }))
-            editor.addCommand({
-                id: "open-command",
-                run: () => {
-                    command.focus()
-                }
+
+            ed.addCommand(KeyMod.CtrlCmd | KeyCode.Period, () => {
+                command.focus()
             })
 
-            editor.addKeybindingRule({
-                keybinding: KeyMod.Alt | KeyCode.Period,
-                command: "open-command"
+            ed.addCommand(KeyMod.CtrlCmd | KeyCode.Equal, () => {
+                channel({
+                    tag: "WINDOW", payload: {
+                        tag: "ZOOMIN"
+                    }
+                })
             })
 
-            editor.addCommand({
-                id: "zoom-in",
-                run: () => {
-                    channel({
-                        tag: "WINDOW", payload: {
-                            tag: "ZOOMIN"
-                        }
-                    })
-                }
+            ed.addCommand(KeyMod.CtrlCmd | KeyCode.Minus, () => {
+                channel({
+                    tag: "WINDOW", payload: {
+                        tag: "ZOOMOUT"
+                    }
+                })
             })
 
-            editor.addKeybindingRule({
-                keybinding: KeyMod.CtrlCmd | KeyCode.Equal,
-                command: "zoom-in"
-            })
-
-            editor.addCommand({
-                id: "zoom-out",
-                run: () => {
-                    channel({
-                        tag: "WINDOW", payload: {
-                            tag: "ZOOMOUT"
-                        }
-                    })
-                }
-            })
-
-
-            editor.addKeybindingRule({
-                keybinding: KeyMod.CtrlCmd | KeyCode.Minus,
-                command: "zoom-out"
-            })
         }
     }
 }

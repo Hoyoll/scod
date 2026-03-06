@@ -1,3 +1,5 @@
+/// Freeze! this shit is freezed. And will not be updated more than this!
+
 import type { editor } from "monaco-editor"
 
 export type Message =
@@ -118,7 +120,7 @@ export type Message =
 export type Channel = (message: Message) => void
 
 export type Port = {
-    [key: string]: (data: any) => void
+    [key: string]: (data: any, current_editor: editor.IStandaloneCodeEditor) => void
 }
 
 export type MAction = () => void
