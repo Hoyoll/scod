@@ -10,6 +10,7 @@ export class Editor {
     private editor: editor.IStandaloneCodeEditor
     private port: Port = {}
     private meta: MTable = {}
+    private alias: Map<string, Alias> = new Map()
     // private widget: HTMLElement
     constructor(doc: HTMLDivElement) {
         this.buffer = new ABuffer()
@@ -71,7 +72,7 @@ export class Editor {
     }
 
     public default() {
-        let al = setup((msg) => {
+        let al = setup((msg: Message) => {
             this.receive(msg)
         })
         this.setup_alias(al)
@@ -96,7 +97,8 @@ export class Editor {
                 this.send(message)
                 break
             case 'PORT':
-                this.port[message.payload.key](message.payload.data, this.editor)
+                this.alias.get(message.payload.key)?.call(message.payload.data)
+                // this.port[message.payload.key](message.payload.data, this.editor)
                 break
             case "BUFFER":
                 switch (message.payload.tag) {
@@ -321,19 +323,44 @@ export class Editor {
     }
 
     private setup_alias(alias: Alias) {
-        for (const key in alias.meta) {
-            this.meta[key] = alias.meta[key]
+        if (alias.widget()) {
+            this.editor.addOverlayWidget({
+                getId: (): string => {
+                    return alias.key()
+                },
+                getDomNode: (): HTMLElement => {
+                    return alias.widget()!
+                },
+                getPosition: (): editor.IOverlayWidgetPosition | null => {
+                    return null
+                }
+            })
         }
-        for (const key in alias.port) {
-            this.port[key] = alias.port[key]
-        }
-        if (alias.widget) {
-            this.editor.addOverlayWidget(alias.widget)
-        }
+        // this.editor.addOverlayWidget({
+        //     getId: function (): string {
+        //         throw new Error("Function not implemented.")
+        //     },
+        //     getDomNode: function (): HTMLElement {
+        //         throw new Error("Function not implemented.")
+        //     },
+        //     getPosition: function (): editor.IOverlayWidgetPosition | null {
+        //         throw new Error("Function not implemented.")
+        //     }
+        // })
+        this.alias.set(alias.key(), alias);
+        // for (const key in alias.meta) {
+        //     this.meta[key] = alias.meta[key]
+        // }
+        // for (const key in alias.port) {
+        //     this.port[key] = alias.port[key]
+        // }
+        // if (alias.widget) {
+        //     this.editor.addOverlayWidget(alias.widget)
+        // }
 
-        if (alias.onload) {
-            alias.onload(this.editor)
-        }
+        // if (alias.onload) {
+        //     alias.onload(this.editor)
+        // }
         // }
     }
 

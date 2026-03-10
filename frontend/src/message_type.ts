@@ -52,6 +52,15 @@ export type BufferP =
         }
     }
     | {
+        tag: "PEEK", payload: {
+            receiver: string
+            payload: {
+                path: string,
+                value: string
+            }
+        }
+    }
+    | {
         tag: "FOCUS"
     }
     | {
@@ -140,11 +149,17 @@ export type MTable = {
     }
 }
 
-export type Alias = {
-    meta: MTable,
-    port: Port
-    widget: editor.IOverlayWidget | null
-    onload: ((current_editor: editor.IStandaloneCodeEditor) => void) | null
+// export type Alias = {
+//     meta: MTable,
+//     port: Port
+//     widget: editor.IOverlayWidget | null
+//     onload: ((current_editor: editor.IStandaloneCodeEditor) => void) | null
+// }
+
+export interface Alias {
+    key(): string
+    call(data: any): void
+    widget(): HTMLElement | null
 }
 
 
