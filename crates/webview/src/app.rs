@@ -1,12 +1,16 @@
-use serde::{Deserialize, Serialize};
+use libloading::{Library, Symbol};
+use scod_core::{
+    alias::{Alias, Mouth},
+    message::{Buffer, Message, Win},
+};
 use serde_json::{from_str, to_string};
 use std::{
     borrow::Cow,
+    collections::HashMap,
     env,
     fs::{self, read},
-    io::{BufRead, BufReader, ErrorKind},
+    io::ErrorKind,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
     thread,
 };
 use winit::{
@@ -78,97 +82,52 @@ fn mime_from_extension(ext: &str) -> &'static str {
     }
 }
 
-#[derive(Deserialize, Serialize)]
-#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
-pub enum Message {
-    Window(Win),
-    Buffer(Buffer),
-    Module {
-        key: String,
-        data: String,
-    },
-    Port {
-        key: String,
-        data: String,
-    },
-    Alias(String),
-    Command(String),
-    Cursor(Cursor),
-    #[serde(skip_serializing, skip_deserializing)]
-    /// The String here IS a serialized Message!
-    Eval(String),
-}
-
-#[derive(Deserialize, Serialize)]
-#[serde(tag = "tag", rename_all = "UPPERCASE")]
-pub enum Win {
-    Ready,
-    Close,
-    ZoomIn,
-    ZoomOut,
-}
-
-#[derive(Deserialize, Serialize)]
-#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
-pub enum Cursor {
-    Move { line: i32, column: i32 },
-    Jump { line: i32, column: i32 },
-    Insert(String),
-}
-
-#[derive(Deserialize, Serialize)]
-#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
-pub enum Buffer {
-    New {
-        buffer: String,
-        /// The PATH LOOKS like THIS: "path/to/file.txt"!
-        path: String,
-        ext: String,
-    },
-    /// To keep it simple, number == 0 WILL automatically resolve into the back of column/line
-    Edit {
-        text: String,
-        path: String,
-        line: Position<i32>,
-        column: Position<i32>,
-    },
-    Write {
-        buffer: String,
-        path: String,
-    },
-    Open(String),
-    Status(Result<String, String>),
-    Focus,
-    Close,
-    Save(Save),
-}
-
-#[derive(Deserialize, Serialize)]
-#[serde(tag = "for", content = "path", rename_all = "UPPERCASE")]
-pub enum Save {
-    Current,
-    Path(String),
-}
-
-#[derive(Deserialize, Serialize)]
-pub struct Position<T> {
-    pub start: T,
-    pub end: T,
-}
-
 pub struct Context {
     pub window: Window,
     pub webview: WebView,
     pub scale: f64,
 }
 
+// pub struct Alias {}
+
+struct Plugin {
+    pub library: Option<Library>,
+    pub alias: Box<dyn Alias>,
+}
+
 pub struct App {
     pub context: Option<Context>,
     pub proxy: EventLoopProxy<Message>,
     pub attr: WindowAttributes,
+    pub alias: HashMap<String, Plugin>,
 }
 
 impl App {
+    pub fn new(proxy: EventLoopProxy<Message>, attr: WindowAttributes) -> Self {
+        let mut alias = HashMap::new();
+        let loader = scod_alias::build(proxy.clone());
+        alias.insert(
+            loader.key(),
+            Plugin {
+                library: None,
+                alias: loader,
+            },
+        );
+        let shell = scod_shell::build(proxy.clone());
+        alias.insert(
+            shell.key(),
+            Plugin {
+                library: None,
+                alias: shell,
+            },
+        );
+        Self {
+            context: None,
+            proxy,
+            attr,
+            alias,
+        }
+    }
     fn create_context(&mut self, event_loop: &ActiveEventLoop) {
         let mut attr = self.attr.clone();
         attr.visible = false;
@@ -273,75 +232,40 @@ impl App {
                 }
                 None => (),
             },
-            Message::Module { key, data } => match key.as_str() {
-                "SHELL" => match shell_words::split(&data) {
-                    Ok(cmd) => {
-                        if cmd.is_empty() {
-                            let msg = Message::Port {
-                                key: "SHELL".to_string(),
-                                data: "Error: Empty command!".to_string(),
-                            };
-                            to_string(&msg).map(|json| self.proxy.send_event(Message::Eval(json)));
-                            return;
-                        }
-                        let mut c = Command::new(&cmd[0]);
-                        for arg in &cmd[1..] {
-                            c.arg(arg);
-                        }
-                        c.stdout(Stdio::piped());
-                        c.stderr(Stdio::piped());
-                        let proxy = self.proxy.clone();
-                        thread::spawn(move || match c.spawn() {
-                            Ok(mut child) => {
-                                let id = child.id();
-                                if let Some(stdout) = child.stdout.take() {
-                                    let mut buf = BufReader::new(stdout);
-                                    for line in buf.lines() {
-                                        let msg = Message::Port {
-                                            key: "SHELL".to_string(),
-                                            data: format!("[PID: {}][OK]: {}", id, line.unwrap()),
-                                        };
-                                        to_string(&msg)
-                                            .map(|json| proxy.send_event(Message::Eval(json)));
-                                    }
-                                }
-
-                                if let Some(stderr) = child.stderr.take() {
-                                    let mut buf = BufReader::new(stderr);
-                                    for line in buf.lines() {
-                                        let msg = Message::Port {
-                                            key: "SHELL".to_string(),
-                                            data: format!(
-                                                "[PID: {}][ERROR]: {}",
-                                                id,
-                                                line.unwrap()
-                                            ),
-                                        };
-
-                                        to_string(&msg)
-                                            .map(|json| proxy.send_event(Message::Eval(json)));
-                                    }
-                                }
+            Message::Module { key, data } => match self.alias.get_mut(&key) {
+                Some(alias) => {
+                    alias.alias.call(data);
+                }
+                None => (),
+            },
+            Message::Alias(path) => unsafe {
+                match Library::new(&path) {
+                    Ok(lib) => {
+                        let symbol: Result<Symbol<Mouth>, libloading::Error> = lib.get(b"build");
+                        match symbol {
+                            Ok(func) => {
+                                let alias = func(self.proxy.clone());
+                                self.alias.insert(
+                                    alias.key(),
+                                    Plugin {
+                                        library: Some(lib),
+                                        alias,
+                                    },
+                                );
                             }
-                            Err(e) => {
-                                let msg = Message::Port {
-                                    key: "SHELL".to_string(),
-                                    data: format!(
-                                        "Error Occured for command: [{}] {}",
-                                        data,
-                                        e.to_string()
-                                    ),
-                                };
-                                to_string(&msg).map(|json| proxy.send_event(Message::Eval(json)));
+                            Err(_) => {
+                                println!(
+                                    "symbol: build does not exist! we only want that symbol buddy!"
+                                )
                             }
-                        });
+                        }
                     }
-                    Err(err) => {}
-                },
-                _ => (),
+                    Err(_) => {
+                        println!("dll: {} does not exist!", path.display())
+                    }
+                }
             },
             Message::Port { .. } => (),
-            Message::Alias(_) => todo!(),
             Message::Command(_) => todo!(),
             Message::Cursor(_) => todo!(),
         }

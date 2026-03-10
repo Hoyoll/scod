@@ -57,7 +57,7 @@ export class Editor {
 
         })
         this.setup_widget()
-        this.send({ tag: "WINDOW", payload: { tag: "READY" } })
+        this.send({ tag: "WINDOW", payload: "READY" })
         // this.default()
         // console.log("setup finished!")
     }

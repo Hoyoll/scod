@@ -1,0 +1,11 @@
+[package]
+name = "scod-alias"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["rlib","cdylib"]
+
+[dependencies]
+winit.workspace = true
+scod-core.workspace = true

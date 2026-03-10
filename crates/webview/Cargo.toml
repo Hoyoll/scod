@@ -1,0 +1,15 @@
+[package]
+name = "scod-webview"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wry = "0.54.1"
+libloading.workspace = true
+winit.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+scod-core.workspace = true
+scod-shell = { path = "../../plugin/shell"}
+scod-alias = { path = "../../plugin/alias"}
+

@@ -266,17 +266,13 @@ export function setup(channel: Channel): Alias {
 
             ed.addCommand(KeyMod.CtrlCmd | KeyCode.Equal, () => {
                 channel({
-                    tag: "WINDOW", payload: {
-                        tag: "ZOOMIN"
-                    }
+                    tag: "WINDOW", payload: "ZOOMIN"
                 })
             })
 
             ed.addCommand(KeyMod.CtrlCmd | KeyCode.Minus, () => {
                 channel({
-                    tag: "WINDOW", payload: {
-                        tag: "ZOOMOUT"
-                    }
+                    tag: "WINDOW", payload: "ZOOMOUT"
                 })
             })
 
