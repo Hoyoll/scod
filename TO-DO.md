@@ -1,1 +1,1 @@
-[]Setup proper monorepo!
+[X]Setup proper monorepo!
