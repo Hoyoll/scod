@@ -266,7 +266,7 @@ impl App {
                 }
             },
             Message::Port { .. } => (),
-            Message::Command(_) => todo!(),
+            // Message::Command(_) => todo!(),
             Message::Cursor(_) => todo!(),
         }
     }

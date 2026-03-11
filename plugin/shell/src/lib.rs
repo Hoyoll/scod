@@ -8,15 +8,25 @@ use scod_core::{
     alias::{Alias, to_string},
     message::Message,
 };
+use serde::{Deserialize, Serialize};
 use winit::event_loop::EventLoopProxy;
 
 struct Shell {
     pub proxy: EventLoopProxy<Message>,
 }
 
+const PORT: &str = "scod::SHELL";
+
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
+enum IType {
+    Command(String),
+    Stdout(String),
+}
+
 impl Alias for Shell {
     fn key(&self) -> String {
-        "SHELL".to_string()
+        "scod::SHELL".to_string()
     }
 
     fn call(&self, data: String) {
@@ -24,8 +34,11 @@ impl Alias for Shell {
             Ok(cmd) => {
                 if cmd.is_empty() {
                     let msg = Message::Port {
-                        key: "SHELL".to_string(),
-                        data: "Error: Empty command!".to_string(),
+                        key: PORT.to_string(),
+                        data: serde_json::to_value(&IType::Stdout(
+                            "Error: Empty command!".to_string(),
+                        ))
+                        .unwrap(),
                     };
                     to_string(&msg).map(|json| self.proxy.send_event(Message::Eval(json)));
                     return;
@@ -41,42 +54,52 @@ impl Alias for Shell {
                     Ok(mut child) => {
                         let id = child.id();
                         if let Some(stdout) = child.stdout.take() {
-                            let mut buf = BufReader::new(stdout);
+                            let buf = BufReader::new(stdout);
                             for line in buf.lines() {
                                 let msg = Message::Port {
-                                    key: "SHELL".to_string(),
-                                    data: format!("[PID: {}][OK]: {}", id, line.unwrap()),
+                                    key: PORT.to_string(),
+                                    data: serde_json::to_value(&IType::Stdout(format!(
+                                        "[PID: {}][OK]: {}",
+                                        id,
+                                        line.unwrap()
+                                    )))
+                                    .unwrap(),
                                 };
                                 to_string(&msg).map(|json| proxy.send_event(Message::Eval(json)));
                             }
                         }
 
                         if let Some(stderr) = child.stderr.take() {
-                            let mut buf = BufReader::new(stderr);
+                            let buf = BufReader::new(stderr);
                             for line in buf.lines() {
                                 let msg = Message::Port {
-                                    key: "SHELL".to_string(),
-                                    data: format!("[PID: {}][ERROR]: {}", id, line.unwrap()),
+                                    key: PORT.to_string(),
+                                    data: serde_json::to_value(&IType::Stdout(format!(
+                                        "[PID: {}][ERROR]: {}",
+                                        id,
+                                        line.unwrap()
+                                    )))
+                                    .unwrap(),
                                 };
-
                                 to_string(&msg).map(|json| proxy.send_event(Message::Eval(json)));
                             }
                         }
                     }
                     Err(e) => {
                         let msg = Message::Port {
-                            key: "SHELL".to_string(),
-                            data: format!(
+                            key: PORT.to_string(),
+                            data: serde_json::to_value(&IType::Stdout(format!(
                                 "Error Occured for command: [{}] {}",
                                 data,
                                 e.to_string()
-                            ),
+                            )))
+                            .unwrap(),
                         };
                         to_string(&msg).map(|json| proxy.send_event(Message::Eval(json)));
                     }
                 });
             }
-            Err(err) => {}
+            Err(_) => (),
         }
     }
 }

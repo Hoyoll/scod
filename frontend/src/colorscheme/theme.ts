@@ -1,43 +1,24 @@
 import { editor } from "monaco-editor";
 import type { Alias, Channel } from "../message_type";
 
-export function setup(channel: Channel): Alias {
-    return {
-        meta: {
-            "theme": {
-                desc: "change theme",
-                proc: (color_scheme: string) => {
-                    return () => {
-                        if (color_scheme) {
-                            channel({
-                                tag: "PORT", payload: {
-                                    key: "CHANGE_THEME",
-                                    data: color_scheme
-                                }
-                            })
-                        }
 
-                    }
-                }
-            }
-        },
-        port: {
-            "CHANGE_THEME": (color_scheme: string, ed) => {
-
-                ed.updateOptions({ theme: color_scheme })
-            }
-        },
-        widget: null,
-        onload: () => {
-            editor.defineTheme("ayu-dark", ayu_dark())
-            editor.defineTheme("monokai", monokai())
-            channel({
-                tag: "PORT", payload: {
-                    key: "CHANGE_THEME", data: "ayu-dark"
-                }
-            })
-        }
+class Theme implements Alias {
+    key(): string {
+        return "!theme"
     }
+    call(theme: string): void {
+        console.log(`${theme} called!`)
+    }
+    onload(ed: editor.IStandaloneCodeEditor): void {
+        editor.defineTheme("ayu-dark", ayu_dark())
+        editor.defineTheme("monokai", monokai())
+        ed.updateOptions({ theme: "ayu-dark" })
+    }
+
+}
+
+export function setup(_channel: Channel): Alias {
+    return new Theme
 }
 
 

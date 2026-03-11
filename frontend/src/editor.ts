@@ -1,14 +1,13 @@
 import { editor } from "monaco-editor"
 import { ABuffer } from "./buffer"
-import { setup as ayu_dark } from "./colorscheme/ayu-dark"
+import { setup as theme } from "./colorscheme/theme"
 import { Ext } from "./language"
-import { type Alias, type Message, type MTable, type Port } from "./message_type"
+import { type Alias, type Message, type MTable } from "./message_type"
 import { setup } from "./widget/command"
-
 export class Editor {
     private buffer: ABuffer
     private editor: editor.IStandaloneCodeEditor
-    private port: Port = {}
+    // private port: Port = {}
     private meta: MTable = {}
     private alias: Map<string, Alias> = new Map()
     // private widget: HTMLElement
@@ -30,6 +29,7 @@ export class Editor {
             mouseWheelZoom: true,
             fontFamily: 'Fira Code',
             fontLigatures: true,
+            // fontSize: 40,
             // scrollBeyondLastLine: false,
             wordWrap: "off",
             scrollbar: {
@@ -76,10 +76,14 @@ export class Editor {
             this.receive(msg)
         })
         this.setup_alias(al)
-        let ayu = ayu_dark((msg) => {
-            this.receive(msg)
+        let them = theme((ms) => {
+            this.receive(ms)
         })
-        this.setup_alias(ayu)
+        this.setup_alias(them)
+        // let ayu = ayu_dark((msg) => {
+        //     this.receive(msg)
+        // })
+        // this.setup_alias(ayu)
 
     }
 
@@ -270,6 +274,7 @@ export class Editor {
                         if (!pos) {
                             return
                         }
+
                         let new_pos = {
                             lineNumber: pos.lineNumber + message.payload.payload.line,
                             column: pos.column + message.payload.payload.column
@@ -323,45 +328,24 @@ export class Editor {
     }
 
     private setup_alias(alias: Alias) {
-        if (alias.widget()) {
-            this.editor.addOverlayWidget({
-                getId: (): string => {
-                    return alias.key()
-                },
-                getDomNode: (): HTMLElement => {
-                    return alias.widget()!
-                },
-                getPosition: (): editor.IOverlayWidgetPosition | null => {
-                    return null
-                }
-            })
-        }
-        // this.editor.addOverlayWidget({
-        //     getId: function (): string {
-        //         throw new Error("Function not implemented.")
-        //     },
-        //     getDomNode: function (): HTMLElement {
-        //         throw new Error("Function not implemented.")
-        //     },
-        //     getPosition: function (): editor.IOverlayWidgetPosition | null {
-        //         throw new Error("Function not implemented.")
+        // if (alias.widget()) {
+        //     let widget = {
+        //         getId: (): string => {
+        //             return alias.key()
+        //         },
+        //         getDomNode: (): HTMLElement => {
+        //             return alias.widget()!
+        //         },
+        //         getPosition: (): editor.IOverlayWidgetPosition | null => {
+        //             return null
+        //         }
         //     }
-        // })
+        //     this.editor.removeOverlayWidget(widget)
+        //     this.editor.addOverlayWidget(widget)
+        // }
+        alias.onload(this.editor)
         this.alias.set(alias.key(), alias);
-        // for (const key in alias.meta) {
-        //     this.meta[key] = alias.meta[key]
-        // }
-        // for (const key in alias.port) {
-        //     this.port[key] = alias.port[key]
-        // }
-        // if (alias.widget) {
-        //     this.editor.addOverlayWidget(alias.widget)
-        // }
 
-        // if (alias.onload) {
-        //     alias.onload(this.editor)
-        // }
-        // }
     }
 
 }

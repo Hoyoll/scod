@@ -8,5 +8,7 @@ crate-type = ["rlib","cdylib"]
 
 [dependencies]
 shell-words = "1.1.1"
+serde.workspace = true
+serde_json.workspace = true
 winit.workspace = true
 scod-core.workspace = true

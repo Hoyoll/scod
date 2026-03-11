@@ -1,0 +1,23 @@
+.command-buffer {
+    width: 100%;
+    padding: 0px 10px;
+    height: 30px;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    border: 0;
+    /* border-color: #10141C; */
+    background: #10141C;
+    outline: none;
+    border: 0;
+    opacity: 0.1;
+    font-family: 'Fira Code';
+}
+
+.command-buffer:focus {
+    background: #121720;
+    border: 0;
+    opacity: 1;
+    border-color: inherit;
+    box-shadow: none;
+}

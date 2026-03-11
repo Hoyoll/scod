@@ -1,6 +1,8 @@
+import { editor, KeyCode, KeyMod } from "monaco-editor";
 import type { Alias, Channel } from "../message_type";
+import "./style.css";
 
-type CType =
+type IType =
     | {
         tag: "COMMAND",
         payload: string
@@ -8,10 +10,9 @@ type CType =
     | {
         tag: "STDOUT",
         payload: string
-
     }
 
-class Command {
+class Command implements Alias {
     private buffer: HTMLInputElement
     private history: {
         table: Set<string>,
@@ -55,12 +56,6 @@ class Command {
                     this.history.stack = this.history.stack.filter(v => v !== value)
                     this.history.stack.push(value)
                     this.history.idx = this.history.stack.length - 1
-                    // this.channel({
-                    //     tag: "PORT", payload: {
-                    //         key: this.key(),
-                    //         data: this.buffer.value
-                    //     }
-                    // })
                     this.call({
                         tag: "COMMAND", payload: this.buffer.value
                     })
@@ -74,6 +69,68 @@ class Command {
                     })
                     break
             }
+        })
+    }
+
+    onload(ed: editor.IStandaloneCodeEditor): void {
+        this.channel({
+            tag: "BUFFER", payload: {
+                tag: "NEW", payload: {
+                    buffer: "",
+                    path: "shell.md",
+                    ext: "md"
+                }
+            }
+        })
+
+        ed.addOverlayWidget({
+            getId: (): string => {
+                return this.key()
+            },
+            getDomNode: (): HTMLElement => {
+                return this.buffer
+            },
+            getPosition: (): editor.IOverlayWidgetPosition | null => {
+                return {
+                    preference: editor.OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
+                }
+            }
+        })
+
+
+        ed.addCommand(KeyMod.CtrlCmd | KeyCode.Period, () => {
+            this.buffer.focus()
+        })
+
+        ed.addCommand(KeyMod.Alt | KeyCode.KeyW, () => {
+            this.channel({
+                tag: "CURSOR", payload: {
+                    tag: "MOVE", payload: {
+                        line: 5,
+                        column: 0
+                    }
+                }
+            })
+        })
+
+
+        ed.addCommand(KeyMod.Alt | KeyCode.KeyS, () => {
+            this.channel({
+                tag: "CURSOR", payload: {
+                    tag: "MOVE", payload: {
+                        line: -5,
+                        column: 0
+                    }
+                }
+            })
+        })
+
+        ed.addCommand(KeyMod.Alt | KeyCode.KeyE, () => {
+            this.channel({
+                tag: "BUFFER", payload: {
+                    tag: "FOCUS"
+                }
+            })
         })
     }
 
@@ -96,17 +153,18 @@ class Command {
         return this.buffer
     }
 
-    call(command: CType) {
-        switch (command.tag) {
+    call(input: IType) {
+        switch (input.tag) {
             case "COMMAND":
-                let [key, ...rest] = command.payload.split(" ");
-                this.meta[key]?.proc(rest.join(" "))()
+                let [key, ...rest] = input.payload.split(" ");
+                this.meta[key]?.proc(rest.join(" "))
                 break
             case "STDOUT":
+                console.log("here!")
                 this.channel({
                     tag: "BUFFER", payload: {
                         tag: "EDIT", payload: {
-                            text: command.payload,
+                            text: input.payload,
                             path: "shell.md",
                             line: {
                                 start: 0, end: 0
@@ -117,358 +175,154 @@ class Command {
                         }
                     }
                 })
-
                 break
         }
     }
 
     key(): string {
-        return "scod:command"
+        return "scod::SHELL"
     }
 
     private meta: Record<string, {
         desc: string,
-        proc: ((args: string) => () => void)
+        proc: ((args: string) => void)
     }> = {
             "op": {
                 desc: "Opening and switching to that buffer",
                 proc: (arg: string) => {
-                    return () => {
-                        this.channel({
-                            tag: "BUFFER", payload: {
-                                tag: "OPEN", payload: arg
-                            }
-                        })
-                    }
+                    this.channel({
+                        tag: "BUFFER", payload: {
+                            tag: "OPEN", payload: arg
+                        }
+                    })
+                }
+            },
+            ":": {
+                desc: "sending shit to port",
+                proc: (arg: string) => {
+                    let [key, ...rest] = arg.split(" ");
+                    this.channel({
+                        tag: "PORT", payload: {
+                            key: key,
+                            data: rest.join(" ")
+                        }
+                    })
                 }
             },
             "pe": {
                 desc: "Pushing edited buffer to the backend",
                 proc: (arg: string) => {
-                    return () => {
-                        this.channel({
-                            tag: "BUFFER", payload: {
-                                tag: "SAVE", payload: arg
-                                    ? { for: "PATH", path: arg }
-                                    : { for: "CURRENT" }
-                            }
-                        })
-                    }
+                    this.channel({
+                        tag: "BUFFER", payload: {
+                            tag: "SAVE", payload: arg
+                                ? { for: "PATH", path: arg }
+                                : { for: "CURRENT" }
+                        }
+                    })
                 }
             },
             "bc": {
                 desc: "Closing the current buffer",
                 proc: () => {
-                    return () => {
-                        this.channel({
-                            tag: "BUFFER", payload: {
-                                tag: "CLOSE"
-                            }
-                        })
-                    }
+                    this.channel({
+                        tag: "BUFFER", payload: {
+                            tag: "CLOSE"
+                        }
+                    })
                 }
             },
             "to": {
                 desc: `Moving the cursor to the n position. Use case: to 10`,
                 proc: (arg: string) => {
-                    return () => {
-                        let [line, column = "0"] = arg.split(" ")
-                        let l = parseInt(line)
-                        if (isNaN(l)) {
-                            l = 0
-                        }
-                        let c = parseInt(column)
-                        if (isNaN(c)) {
-                            c = 0
-                        }
-                        this.channel({
-                            tag: "CURSOR", payload: {
-                                tag: "JUMP", payload: {
-                                    line: l,
-                                    column: c
-                                }
-                            }
-                        })
+                    let [line, column = "0"] = arg.split(" ")
+                    let l = parseInt(line)
+                    if (isNaN(l)) {
+                        l = 0
                     }
+                    let c = parseInt(column)
+                    if (isNaN(c)) {
+                        c = 0
+                    }
+                    this.channel({
+                        tag: "CURSOR", payload: {
+                            tag: "JUMP", payload: {
+                                line: l,
+                                column: c
+                            }
+                        }
+                    })
                 }
             },
             "jm": {
                 desc: `Jumping line relative the argument provided. Use case: jm 1 or :jm -1`,
                 proc: (arg: string) => {
-                    return () => {
-                        let [line, column = "0"] = arg.split(" ")
-                        let l = parseInt(line)
-                        if (isNaN(l)) {
-                            l = 0
-                        }
-                        let c = parseInt(column)
-                        if (isNaN(c)) {
-                            c = 0
-                        }
-                        this.channel({
-                            tag: "CURSOR", payload: {
-                                tag: "MOVE", payload: {
-                                    line: l, column: c
-                                }
-                            }
-                        })
+                    let [line, column = "0"] = arg.split(" ")
+                    let l = parseInt(line)
+                    if (isNaN(l)) {
+                        l = 0
                     }
+                    let c = parseInt(column)
+                    if (isNaN(c)) {
+                        c = 0
+                    }
+                    this.channel({
+                        tag: "CURSOR", payload: {
+                            tag: "MOVE", payload: {
+                                line: l, column: c
+                            }
+                        }
+                    })
                 }
             },
             "fc": {
                 desc: "focus to editor",
                 proc: () => {
-                    return () => {
-                        this.channel({
-                            tag: "BUFFER", payload: {
-                                tag: "FOCUS"
-                            }
-                        })
-                    }
+                    this.channel({
+                        tag: "BUFFER", payload: {
+                            tag: "FOCUS"
+                        }
+                    })
                 }
             },
             "cs": {
                 desc: `Command Sequence! You can send multiple commands with this! Use case: cs sh echo hello, echo world!`,
                 proc: (arg: string) => {
                     let args = arg.split(",")
-                    return () => {
-                        args.forEach((cmd) => {
-                            this.channel({
-                                tag: "COMMAND", payload: cmd.trim()
-                            })
+                    args.forEach((cmd) => {
+                        this.call({
+                            tag: "COMMAND",
+                            payload: cmd.trim()
                         })
-                    }
+                    })
                 }
             },
             "la": {
                 desc: `Loading a new alias. Use case: ls ./path/to/alias.js`,
                 proc: (path: string) => {
-                    return () => {
-                        if (path) {
-                            this.channel({
-                                tag: "ALIAS", payload: path
-                            })
-                        }
+                    if (path) {
+                        this.channel({
+                            tag: "ALIAS", payload: path
+                        })
                     }
                 }
             },
             "sh": {
                 desc: "Sending an actual shell command to the backend",
                 proc: (shell: string) => {
-                    return () => {
-                        if (shell === "") {
-                            return
-                        }
-                        this.channel({
-                            tag: "MODULE", payload: {
-                                key: "SHELL",
-                                data: shell
-                            }
-                        })
+                    if (shell === "") {
+                        return
                     }
+                    this.channel({
+                        tag: "MODULE", payload: {
+                            key: "scod::SHELL",
+                            data: shell
+                        }
+                    })
                 }
             }
         }
 }
 
-
-// getPosition(): editor.IOverlayWidgetPosition | null {
-//     return {
-//         preference: editor.OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
-//     }
-// }
-
-// public focus() {
-//     this.buffer.focus()
-// }
-// }
-
 export function setup(channel: Channel): Alias {
     return new Command(channel)
 }
-
-// export function setup(channel: Channel): Alias {
-//     let command = new Command(channel)
-//     return {
-//         meta: {
-//             "op": {
-//                 desc: "Opening and switching to that buffer",
-//                 proc: (arg: string) => {
-//                     return () => {
-//                         channel({
-//                             tag: "BUFFER", payload: {
-//                                 tag: "OPEN", payload: arg
-//                             }
-//                         })
-//                     }
-//                 }
-//             },
-//             "pe": {
-//                 desc: "Pushing edited buffer to the backend",
-//                 proc: (arg: string) => {
-//                     return () => {
-//                         channel({
-//                             tag: "BUFFER", payload: {
-//                                 tag: "SAVE", payload: arg
-//                                     ? { for: "PATH", path: arg }
-//                                     : { for: "CURRENT" }
-//                             }
-//                         })
-//                     }
-//                 }
-//             },
-//             "bc": {
-//                 desc: "Closing the current buffer",
-//                 proc: () => {
-//                     return () => {
-//                         channel({
-//                             tag: "BUFFER", payload: {
-//                                 tag: "CLOSE"
-//                             }
-//                         })
-//                     }
-//                 }
-//             },
-//             "to": {
-//                 desc: `Moving the cursor to the n position. Use case: to 10`,
-//                 proc: (arg: string) => {
-//                     return () => {
-//                         let [line, column = "0"] = arg.split(" ")
-//                         let l = parseInt(line)
-//                         if (isNaN(l)) {
-//                             l = 0
-//                         }
-//                         let c = parseInt(column)
-//                         if (isNaN(c)) {
-//                             c = 0
-//                         }
-//                         channel({
-//                             tag: "CURSOR", payload: {
-//                                 tag: "JUMP", payload: {
-//                                     line: l,
-//                                     column: c
-//                                 }
-//                             }
-//                         })
-//                     }
-//                 }
-//             },
-//             "jm": {
-//                 desc: `Jumping line relative the argument provided. Use case: jm 1 or :jm -1`,
-//                 proc: (arg: string) => {
-//                     return () => {
-//                         let [line, column = "0"] = arg.split(" ")
-//                         let l = parseInt(line)
-//                         if (isNaN(l)) {
-//                             l = 0
-//                         }
-//                         let c = parseInt(column)
-//                         if (isNaN(c)) {
-//                             c = 0
-//                         }
-//                         channel({
-//                             tag: "CURSOR", payload: {
-//                                 tag: "MOVE", payload: {
-//                                     line: l, column: c
-//                                 }
-//                             }
-//                         })
-//                     }
-//                 }
-//             },
-//             "fc": {
-//                 desc: "focus to editor",
-//                 proc: () => {
-//                     return () => {
-//                         channel({
-//                             tag: "BUFFER", payload: {
-//                                 tag: "FOCUS"
-//                             }
-//                         })
-//                     }
-//                 }
-//             },
-//             "cs": {
-//                 desc: `Command Sequence! You can send multiple commands with this! Use case: cs sh echo hello, echo world!`,
-//                 proc: (arg: string) => {
-//                     let args = arg.split(",")
-//                     return () => {
-//                         args.forEach((cmd) => {
-//                             channel({
-//                                 tag: "COMMAND", payload: cmd.trim()
-//                             })
-//                         })
-//                     }
-//                 }
-//             },
-//             "la": {
-//                 desc: `Loading a new alias. Use case: ls ./path/to/alias.js`,
-//                 proc: (path: string) => {
-//                     return () => {
-//                         if (path) {
-//                             channel({
-//                                 tag: "ALIAS", payload: path
-//                             })
-//                         }
-//                     }
-//                 }
-//             },
-//             "sh": {
-//                 desc: "Sending an actual shell command to the backend",
-//                 proc: (shell: string) => {
-//                     return () => {
-//                         if (shell === "") {
-//                             return
-//                         }
-//                         channel({
-//                             tag: "MODULE", payload: {
-//                                 key: "SHELL",
-//                                 data: shell
-//                             }
-//                         })
-//                     }
-//                 }
-//             }
-//         },
-//         port: {
-//             "SHELL": (data: string) => {
-//                 channel({
-//                     tag: "BUFFER", payload: {
-//                         tag: "EDIT", payload: {
-//                             text: data,
-//                             path: "shell.md",
-//                             line: {
-//                                 start: 0, end: 0
-//                             },
-//                             column: {
-//                                 start: 0, end: 0
-//                             }
-//                         }
-//                     }
-//                 })
-//                 command.focus()
-//             }
-//         },
-//         widget: command,
-//         onload: (ed) => {
-//             channel(({ tag: "COMMAND", payload: "op shell.md" }))
-
-//             ed.addCommand(KeyMod.CtrlCmd | KeyCode.Period, () => {
-//                 command.focus()
-//             })
-
-//             ed.addCommand(KeyMod.CtrlCmd | KeyCode.Equal, () => {
-//                 channel({
-//                     tag: "WINDOW", payload: "ZOOMIN"
-//                 })
-//             })
-
-//             ed.addCommand(KeyMod.CtrlCmd | KeyCode.Minus, () => {
-//                 channel({
-//                     tag: "WINDOW", payload: "ZOOMOUT"
-//                 })
-//             })
-
-//         }
-//     }
-// }

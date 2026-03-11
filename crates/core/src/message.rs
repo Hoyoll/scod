@@ -13,10 +13,9 @@ pub enum Message {
     },
     Port {
         key: String,
-        data: String,
+        data: serde_json::Value,
     },
     Alias(PathBuf),
-    Command(String),
     Cursor(Cursor),
     #[serde(skip_serializing, skip_deserializing)]
     /// The String here IS a serialized Message!

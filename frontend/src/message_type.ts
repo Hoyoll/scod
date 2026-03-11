@@ -52,15 +52,6 @@ export type BufferP =
         }
     }
     | {
-        tag: "PEEK", payload: {
-            receiver: string
-            payload: {
-                path: string,
-                value: string
-            }
-        }
-    }
-    | {
         tag: "FOCUS"
     }
     | {
@@ -75,6 +66,11 @@ export type BufferP =
             for: "PATH", path: string
         }
     }
+
+export type BufferPeek = {
+    path: string,
+    value: string
+}
 
 export type CursorP =
     | {
@@ -136,10 +132,6 @@ export type Message =
 
 export type Channel = (message: Message) => void
 
-export type Port = {
-    [key: string]: (data: any, current_editor: editor.IStandaloneCodeEditor) => void
-}
-
 export type MAction = () => void
 
 export type MTable = {
@@ -149,17 +141,10 @@ export type MTable = {
     }
 }
 
-// export type Alias = {
-//     meta: MTable,
-//     port: Port
-//     widget: editor.IOverlayWidget | null
-//     onload: ((current_editor: editor.IStandaloneCodeEditor) => void) | null
-// }
-
 export interface Alias {
     key(): string
     call(data: any): void
-    widget(): HTMLElement | null
+    onload(editor: editor.IStandaloneCodeEditor): void
 }
 
 

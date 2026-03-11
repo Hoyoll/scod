@@ -2279,6 +2279,8 @@ name = "scod-shell"
 version = "0.1.0"
 dependencies = [
  "scod-core",
+ "serde",
+ "serde_json",
  "shell-words",
  "winit",
 ]
