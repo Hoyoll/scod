@@ -7,10 +7,7 @@ use serde::{Deserialize, Serialize};
 pub enum Message {
     Window(Win),
     Buffer(Buffer),
-    Module {
-        key: String,
-        data: String,
-    },
+    Module(Module),
     Port {
         key: String,
         data: serde_json::Value,
@@ -20,6 +17,14 @@ pub enum Message {
     #[serde(skip_serializing, skip_deserializing)]
     /// The String here IS a serialized Message!
     Eval(String),
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
+pub enum Module {
+    Load { key: String },
+    Kill { key: String },
+    Call { key: String, data: String },
 }
 
 #[derive(Deserialize, Serialize)]

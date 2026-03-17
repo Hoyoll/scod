@@ -1,3 +1,8 @@
+use std::{
+    collections::HashMap,
+    process::{Child, ChildStdin},
+};
+
 use serde_json::Error;
 use winit::event_loop::EventLoopProxy;
 
@@ -19,3 +24,5 @@ pub fn send(proxy: &EventLoopProxy<Message>, msg: Message) {
 pub fn to_string(msg: &Message) -> Result<String, Error> {
     serde_json::to_string(msg)
 }
+
+pub type AList = HashMap<String, Child>;

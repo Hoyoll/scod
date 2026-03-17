@@ -49,9 +49,12 @@ impl Alias for Shell {
                 }
                 c.stdout(Stdio::piped());
                 c.stderr(Stdio::piped());
+                c.stdin(Stdio::piped());
+                // let stdin = c.stdin("cfg")
                 let proxy = self.proxy.clone();
                 thread::spawn(move || match c.spawn() {
                     Ok(mut child) => {
+                        // child.stdin
                         let id = child.id();
                         if let Some(stdout) = child.stdout.take() {
                             let buf = BufReader::new(stdout);

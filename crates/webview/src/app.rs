@@ -1,7 +1,8 @@
 use libloading::{Library, Symbol};
 use scod_core::{
-    alias::{Alias, Mouth},
-    message::{Buffer, Message, Win},
+    alias::{AList, Alias, Mouth},
+    client::{self, Client},
+    message::{Buffer, Message, Module, Win},
 };
 use serde_json::{from_str, to_string};
 use std::{
@@ -9,8 +10,9 @@ use std::{
     collections::HashMap,
     env,
     fs::{self, read},
-    io::ErrorKind,
+    io::{BufRead, BufReader, ErrorKind, Write},
     path::{Path, PathBuf},
+    process::{self, ChildStdin, Command},
     thread,
 };
 use winit::{
@@ -100,6 +102,8 @@ pub struct App {
     pub proxy: EventLoopProxy<Message>,
     pub attr: WindowAttributes,
     pub alias: HashMap<String, Plugin>,
+    pub alist: AList,
+    pub client: Client,
 }
 
 impl App {
@@ -126,6 +130,8 @@ impl App {
             proxy,
             attr,
             alias,
+            alist: AList::new(),
+            client: Client::new(),
         }
     }
     fn create_context(&mut self, event_loop: &ActiveEventLoop) {
@@ -232,12 +238,63 @@ impl App {
                 }
                 None => (),
             },
-            Message::Module { key, data } => match self.alias.get_mut(&key) {
-                Some(alias) => {
-                    alias.alias.call(data);
+            Message::Module(m) => match m {
+                Module::Load { key } => {
+                    if let Some(mut child) = self.alist.remove(&key) {
+                        child.kill();
+                    }
+                    if let Some(proc) = self.client.alias.get(&key) {
+                        let mut child = match proc {
+                            client::Path::Global(p) => {
+                                let mut pat = env::home_dir().unwrap();
+                                pat.push(".scod");
+                                p.split("/").for_each(|l| {
+                                    pat.push(l);
+                                });
+                                Command::new(pat)
+                            }
+                            client::Path::Local(p) => Command::new(p),
+                        };
+                        match child.spawn() {
+                            Ok(mut child) => {
+                                let child_stdout = child.stdout.take().unwrap();
+                                let proxy = self.proxy.clone();
+                                thread::spawn(move || {
+                                    let buf = BufReader::new(child_stdout);
+                                    for line in buf.lines() {
+                                        if let Ok(line) = line {
+                                            from_str(&line).map(|msg: Message| {
+                                                proxy.send_event(msg);
+                                            });
+                                        }
+                                    }
+                                });
+                                self.alist.insert(key, child);
+                            }
+                            Err(_) => {}
+                        }
+                    }
                 }
-                None => (),
+                Module::Kill { key } => {
+                    if let Some(mut child) = self.alist.remove(&key) {
+                        child.kill().unwrap();
+                    }
+                }
+                Module::Call { key, data } => match self.alist.get_mut(&key) {
+                    Some(child) => {
+                        if let Some(child_stdin) = &mut child.stdin {
+                            writeln!(child_stdin, "{}", &data);
+                        }
+                    }
+                    None => (),
+                },
             },
+            // Message::Module { key, data } => match self.alias.get_mut(&key) {
+            //     Some(alias) => {
+            //         alias.alias.call(data);
+            //     }
+            //     None => (),
+            // },
             Message::Alias(path) => unsafe {
                 match Library::new(&path) {
                     Ok(lib) => {
