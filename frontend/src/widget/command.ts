@@ -314,8 +314,10 @@ class Command implements Alias {
                     }
                     this.channel({
                         tag: "MODULE", payload: {
-                            key: "scod::SHELL",
-                            data: shell
+                            tag: "CALL", payload: {
+                                key: "shell",
+                                data: shell
+                            }
                         }
                     })
                 }

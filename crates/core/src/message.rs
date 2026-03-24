@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
@@ -8,11 +6,8 @@ pub enum Message {
     Window(Win),
     Buffer(Buffer),
     Module(Module),
-    Port {
-        key: String,
-        data: serde_json::Value,
-    },
-    Alias(PathBuf),
+    Port(Port),
+    // Alias(PathBuf),
     Cursor(Cursor),
     #[serde(skip_serializing, skip_deserializing)]
     /// The String here IS a serialized Message!
@@ -25,6 +20,21 @@ pub enum Module {
     Load { key: String },
     Kill { key: String },
     Call { key: String, data: String },
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
+pub enum Port {
+    Spin {
+        key: String,
+    },
+    Send {
+        key: String,
+        data: serde_json::Value,
+    },
+    Wipe {
+        key: String,
+    },
 }
 
 #[derive(Deserialize, Serialize)]

@@ -1,5 +1,5 @@
 /// Freeze! this shit is freezed. And will not be updated more than this!
-
+/// Freeze my ass...
 import type { editor } from "monaco-editor"
 
 export type WindowP = "READY" | "ZOOMIN" | "ZOOMOUT" | "CLOSE"
@@ -9,10 +9,23 @@ export type PortP = {
     data: any
 }
 
-export type ModuleP = {
-    key: string,
-    data: string
-}
+export type ModuleP =
+    | {
+        tag: "LOAD", payload: {
+            key: string
+        }
+    }
+    | {
+        tag: "KILL", payload: {
+            key: string
+        }
+    }
+    | {
+        tag: "CALL", payload: {
+            key: string,
+            data: string
+        }
+    }
 
 export type BufferP =
     | {

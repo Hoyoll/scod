@@ -2258,14 +2258,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "scod-alias"
-version = "0.1.0"
-dependencies = [
- "scod-core",
- "winit",
-]
-
-[[package]]
 name = "scod-core"
 version = "0.1.0"
 dependencies = [
@@ -2290,9 +2282,7 @@ name = "scod-webview"
 version = "0.1.0"
 dependencies = [
  "libloading 0.9.0",
- "scod-alias",
  "scod-core",
- "scod-shell",
  "serde",
  "serde_json",
  "winit",

@@ -10,6 +10,4 @@ winit.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 scod-core.workspace = true
-scod-shell = { path = "../../plugin/shell"}
-scod-alias = { path = "../../plugin/alias"}
 

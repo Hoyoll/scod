@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, env, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -11,14 +11,21 @@ pub type Key = String;
 
 #[derive(Serialize, Deserialize)]
 pub struct Client {
-    pub alias: HashMap<Key, Path>,
-    // pub
+    pub mod_list: PathBuf, // pub
+    pub port_list: PathBuf,
 }
 
 impl Client {
     pub fn new() -> Self {
-        Self {
-            alias: HashMap::new(),
-        }
+        let mut home = env::home_dir().unwrap();
+        home.push(".scod");
+        // let ho = home.clone();
+        let mut sel = Self {
+            mod_list: home.clone(),
+            port_list: home.clone(),
+        };
+        sel.mod_list.push("mod");
+        sel.port_list.push("port");
+        sel
     }
 }

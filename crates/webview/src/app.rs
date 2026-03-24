@@ -2,7 +2,7 @@ use libloading::{Library, Symbol};
 use scod_core::{
     alias::{AList, Alias, Mouth},
     client::{self, Client},
-    message::{Buffer, Message, Module, Win},
+    message::{Buffer, Message, Module, Port, Win},
 };
 use serde_json::{from_str, to_string};
 use std::{
@@ -101,35 +101,18 @@ pub struct App {
     pub context: Option<Context>,
     pub proxy: EventLoopProxy<Message>,
     pub attr: WindowAttributes,
-    pub alias: HashMap<String, Plugin>,
+    // pub alias: HashMap<String, Plugin>,
     pub alist: AList,
     pub client: Client,
 }
 
 impl App {
     pub fn new(proxy: EventLoopProxy<Message>, attr: WindowAttributes) -> Self {
-        let mut alias = HashMap::new();
-        let loader = scod_alias::build(proxy.clone());
-        alias.insert(
-            loader.key(),
-            Plugin {
-                library: None,
-                alias: loader,
-            },
-        );
-        let shell = scod_shell::build(proxy.clone());
-        alias.insert(
-            shell.key(),
-            Plugin {
-                library: None,
-                alias: shell,
-            },
-        );
         Self {
             context: None,
             proxy,
             attr,
-            alias,
+            // alias,
             alist: AList::new(),
             client: Client::new(),
         }
@@ -243,37 +226,27 @@ impl App {
                     if let Some(mut child) = self.alist.remove(&key) {
                         child.kill();
                     }
-                    if let Some(proc) = self.client.alias.get(&key) {
-                        let mut child = match proc {
-                            client::Path::Global(p) => {
-                                let mut pat = env::home_dir().unwrap();
-                                pat.push(".scod");
-                                p.split("/").for_each(|l| {
-                                    pat.push(l);
-                                });
-                                Command::new(pat)
-                            }
-                            client::Path::Local(p) => Command::new(p),
-                        };
-                        match child.spawn() {
-                            Ok(mut child) => {
-                                let child_stdout = child.stdout.take().unwrap();
-                                let proxy = self.proxy.clone();
-                                thread::spawn(move || {
-                                    let buf = BufReader::new(child_stdout);
-                                    for line in buf.lines() {
-                                        if let Ok(line) = line {
-                                            from_str(&line).map(|msg: Message| {
-                                                proxy.send_event(msg);
-                                            });
-                                        }
+                    // let mut p = self.client.mod_list.clone();
+                    self.client.mod_list.push(&key);
+                    match Command::new(&self.client.mod_list).spawn() {
+                        Ok(mut child) => {
+                            let child_stdout = child.stdout.take().unwrap();
+                            let proxy = self.proxy.clone();
+                            thread::spawn(move || {
+                                let buf = BufReader::new(child_stdout);
+                                for line in buf.lines() {
+                                    if let Ok(line) = line {
+                                        from_str(&line).map(|msg: Message| {
+                                            proxy.send_event(msg);
+                                        });
                                     }
-                                });
-                                self.alist.insert(key, child);
-                            }
-                            Err(_) => {}
+                                }
+                            });
+                            self.alist.insert(key, child);
                         }
+                        Err(_) => {}
                     }
+                    self.client.mod_list.pop();
                 }
                 Module::Kill { key } => {
                     if let Some(mut child) = self.alist.remove(&key) {
@@ -289,42 +262,24 @@ impl App {
                     None => (),
                 },
             },
-            // Message::Module { key, data } => match self.alias.get_mut(&key) {
-            //     Some(alias) => {
-            //         alias.alias.call(data);
-            //     }
-            //     None => (),
-            // },
-            Message::Alias(path) => unsafe {
-                match Library::new(&path) {
-                    Ok(lib) => {
-                        let symbol: Result<Symbol<Mouth>, libloading::Error> = lib.get(b"build");
-                        match symbol {
-                            Ok(func) => {
-                                let alias = func(self.proxy.clone());
-                                self.alias.insert(
-                                    alias.key(),
-                                    Plugin {
-                                        library: Some(lib),
-                                        alias,
-                                    },
-                                );
-                            }
-                            Err(_) => {
-                                println!(
-                                    "symbol: build does not exist! we only want that symbol buddy!"
-                                )
-                            }
-                        }
+            Message::Port(port) => match &port {
+                Port::Spin { key } => {
+                    self.client.port_list.push(&key);
+                    match read(&self.client.port_list) {
+                        Ok(_) => {}
+                        Err(_) => {}
                     }
-                    Err(_) => {
-                        println!("dll: {} does not exist!", path.display())
-                    }
+                    self.client.port_list.pop();
+                }
+                Port::Send { .. } | Port::Wipe { .. } => {
+                    self.proxy
+                        .send_event(Message::Eval(to_string(&Message::Port(port)).unwrap()));
                 }
             },
-            Message::Port { .. } => (),
-            // Message::Command(_) => todo!(),
-            Message::Cursor(_) => todo!(),
+            Message::Cursor(_) => {
+                self.proxy
+                    .send_event(Message::Eval(to_string(&message).unwrap()));
+            }
         }
     }
 
