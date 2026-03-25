@@ -2,18 +2,15 @@ import { editor } from "monaco-editor"
 import { ABuffer } from "./buffer"
 import { setup as theme } from "./colorscheme/theme"
 import { Ext } from "./language"
-import { type Alias, type Message, type MTable } from "./message_type"
+import { type Alias, type Message } from "./message_type"
 import { setup } from "./widget/command"
 export class Editor {
     private buffer: ABuffer
     private editor: editor.IStandaloneCodeEditor
-    // private port: Port = {}
-    private meta: MTable = {}
+    private port: Map<string, Worker> = new Map()
     private alias: Map<string, Alias> = new Map()
-    // private widget: HTMLElement
     constructor(doc: HTMLDivElement) {
         this.buffer = new ABuffer()
-        // this.widget = widget
         this.editor = editor.create(doc, {
             value: undefined,
             language: undefined,
@@ -80,15 +77,23 @@ export class Editor {
             this.receive(ms)
         })
         this.setup_alias(them)
-        // let ayu = ayu_dark((msg) => {
-        //     this.receive(msg)
-        // })
-        // this.setup_alias(ayu)
 
     }
 
     private send(message: Message) {
         window.ipc.postMessage(JSON.stringify(message))
+    }
+
+    public open_port(key: string, js: string) {
+        let blob = new Blob([js], { type: 'application/javascript' })
+        let url = URL.createObjectURL(blob)
+        let work = new Worker(url)
+        work.onmessage = (event) => {
+            let message = event.data as Message
+            this.receive(message)
+        }
+        URL.revokeObjectURL(url);
+        this.port.set(key, work);
     }
 
     public receive(message: Message) {
@@ -101,8 +106,18 @@ export class Editor {
                 this.send(message)
                 break
             case 'PORT':
-                this.alias.get(message.payload.key)?.call(message.payload.data)
-                // this.port[message.payload.key](message.payload.data, this.editor)
+                switch (message.payload.tag) {
+                    case "SPIN":
+                        this.send(message)
+                        break
+                    case "SEND":
+                        this.port.get(message.payload.payload.key)?.postMessage(message.payload.payload.data)
+                        break
+                    case "WIPE":
+                        let worker = this.port.get(message.payload.payload.key)
+                        worker?.terminate()
+                        break
+                }
                 break
             case "BUFFER":
                 switch (message.payload.tag) {
@@ -251,12 +266,6 @@ export class Editor {
                         break
                 }
                 break
-            // case "WINDOW":
-            case "COMMAND":
-                let [current_cmd, ...args] = message.payload.trim().split(" ")
-                this.meta[current_cmd]?.proc(args.join(" "))()
-
-                break
             case "ALIAS":
                 import(message.payload).then((plugin) => {
                     let al = plugin.setup((msg: Message) => {
@@ -328,21 +337,6 @@ export class Editor {
     }
 
     private setup_alias(alias: Alias) {
-        // if (alias.widget()) {
-        //     let widget = {
-        //         getId: (): string => {
-        //             return alias.key()
-        //         },
-        //         getDomNode: (): HTMLElement => {
-        //             return alias.widget()!
-        //         },
-        //         getPosition: (): editor.IOverlayWidgetPosition | null => {
-        //             return null
-        //         }
-        //     }
-        //     this.editor.removeOverlayWidget(widget)
-        //     this.editor.addOverlayWidget(widget)
-        // }
         alias.onload(this.editor)
         this.alias.set(alias.key(), alias);
 

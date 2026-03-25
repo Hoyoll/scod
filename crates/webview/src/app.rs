@@ -1,18 +1,17 @@
-use libloading::{Library, Symbol};
 use scod_core::{
-    alias::{AList, Alias, Mouth},
-    client::{self, Client},
-    message::{Buffer, Message, Module, Port, Win},
+    alias::AList,
+    client::Client,
+    message::{Buffer, For, Lane, Message, Module, Port, Win},
 };
-use serde_json::{from_str, to_string};
+use serde_json::from_str;
 use std::{
     borrow::Cow,
     collections::HashMap,
     env,
-    fs::{self, read},
+    fs::{self, read, read_to_string},
     io::{BufRead, BufReader, ErrorKind, Write},
     path::{Path, PathBuf},
-    process::{self, ChildStdin, Command},
+    process::{ChildStdin, Command},
     thread,
 };
 use winit::{
@@ -23,6 +22,7 @@ use winit::{
 };
 use wry::{
     WebView, WebViewBuilder,
+    dpi::{LogicalSize, Size},
     http::{Request, Response, StatusCode},
 };
 
@@ -67,6 +67,50 @@ fn protocol(_url: &str, req: Request<Vec<u8>>) -> Response<Cow<'static, [u8]>> {
     res
 }
 
+struct Proc {
+    pub root: PathBuf,
+}
+
+impl Proc {
+    pub fn serve(&self, req: Request<Vec<u8>>) -> Response<Cow<'static, [u8]>> {
+        let uri = req.uri();
+        let mut path = self.root.clone();
+        let res = match uri.path() {
+            "/" => {
+                path.push("index.html");
+                match read(path) {
+                    Ok(html) => Response::builder()
+                        .status(StatusCode::OK)
+                        .header("Content-Type", "text/html")
+                        .body(Cow::Owned(html))
+                        .unwrap(),
+                    Err(_) => Response::default(),
+                }
+            }
+            _ => {
+                uri.path().split("/").for_each(|s| {
+                    path.push(s);
+                });
+                match path.extension() {
+                    Some(ext) => {
+                        let mime = mime_from_extension(ext.to_str().unwrap());
+                        match read(path) {
+                            Ok(b) => Response::builder()
+                                .status(StatusCode::OK)
+                                .header("Content-Type", mime)
+                                .body(Cow::Owned(b))
+                                .unwrap(),
+                            Err(_) => Response::default(),
+                        }
+                    }
+                    None => Response::default(),
+                }
+            }
+        };
+        res
+    }
+}
+
 fn mime_from_extension(ext: &str) -> &'static str {
     match ext {
         "html" => "text/html",
@@ -90,18 +134,11 @@ pub struct Context {
     pub scale: f64,
 }
 
-// pub struct Alias {}
-
-struct Plugin {
-    pub library: Option<Library>,
-    pub alias: Box<dyn Alias>,
-}
-
 pub struct App {
     pub context: Option<Context>,
     pub proxy: EventLoopProxy<Message>,
     pub attr: WindowAttributes,
-    // pub alias: HashMap<String, Plugin>,
+    pub sub_context: HashMap<String, Context>,
     pub alist: AList,
     pub client: Client,
 }
@@ -112,7 +149,7 @@ impl App {
             context: None,
             proxy,
             attr,
-            // alias,
+            sub_context: HashMap::new(),
             alist: AList::new(),
             client: Client::new(),
         }
@@ -151,82 +188,94 @@ impl App {
         });
     }
 
-    fn handle_message(&mut self, message: Message) {
+    fn send(&mut self, message: Message) {
+        if let Some(context) = &mut self.context {
+            if let Ok(json) = serde_json::to_string(&message) {
+                context
+                    .webview
+                    .evaluate_script(&format!("window.Editor.receive({})", json));
+            }
+        }
+    }
+
+    fn handle_message(&mut self, message: Message, event_loop: &ActiveEventLoop) {
         match message {
-            Message::Window(win) => match win {
-                Win::Ready => match &mut self.context {
-                    Some(c) => {
-                        c.window.set_visible(true);
-                        c.webview.set_visible(true);
-                        c.window.set_maximized(true);
-                        c.window.focus_window();
-                    }
-                    None => (),
-                },
-                Win::Close => todo!(),
-                Win::ZoomIn => {
-                    if let Some(c) = &mut self.context {
-                        c.scale += 0.1;
-                        c.webview.zoom(c.scale);
-                    }
+            Message::Window { to, win } => {
+                let c = match to {
+                    For::Main => self.context.as_mut(),
+                    For::Member(key) => self.sub_context.get_mut(&key),
+                };
+                if let Some(c) = c {
+                    match win {
+                        Win::Focus => {
+                            c.window.set_visible(true);
+                            c.webview.set_visible(true);
+                            c.window.focus_window();
+                        }
+                        Win::Close => todo!(),
+                        Win::ZoomIn => {
+                            c.scale += 0.1;
+                            c.webview.zoom(c.scale);
+                        }
+                        Win::ZoomOut => {
+                            c.scale -= 0.1;
+                            c.webview.zoom(c.scale);
+                        }
+                        Win::Resize { width, height } => {
+                            c.window
+                                .request_inner_size(Size::Logical(LogicalSize::new(width, height)));
+                        }
+                        Win::Hide => {
+                            c.webview.set_visible(false);
+                            c.window.set_visible(false);
+                        }
+                        Win::Maximize => {
+                            c.window.set_maximized(true);
+                        }
+                    };
                 }
-                Win::ZoomOut => {
-                    if let Some(c) = &mut self.context {
-                        c.scale -= 0.1;
-                        c.webview.zoom(c.scale);
-                    }
-                }
-            },
+            }
             Message::Buffer(buffer) => match buffer {
                 Buffer::Write { buffer, path } => match fs::write(path, buffer) {
                     Ok(_) => {
                         println!("SAVED!")
                     }
                     Err(_) => {
-                        println!("FILE PERMISSION ISSUE PROBABLY!")
+                        println!("FILE PERMISSION ISSUE, PROBABLY!")
                     }
                 },
                 Buffer::Open(p) => {
-                    let proxy = self.proxy.clone();
-                    thread::spawn(move || {
-                        let path = Path::new(&p);
-                        let ext = match path.extension() {
-                            Some(e) => e.to_string_lossy().to_string(),
-                            None => "".to_string(),
-                        };
-                        let buffer = match fs::read_to_string(path) {
-                            Ok(value) => Message::Buffer(Buffer::New {
-                                buffer: value,
+                    let path = Path::new(&p);
+                    let ext = match path.extension() {
+                        Some(e) => e.to_string_lossy().to_string(),
+                        None => "".to_string(),
+                    };
+                    let buffer = match read_to_string(&p) {
+                        Ok(buff) => Message::Buffer(Buffer::New {
+                            buffer: buff,
+                            path: p,
+                            ext,
+                        }),
+                        Err(err) => match err.kind() {
+                            ErrorKind::NotFound => Message::Buffer(Buffer::New {
+                                buffer: String::new(),
                                 path: p,
                                 ext,
                             }),
-                            Err(e) => match e.kind() {
-                                ErrorKind::NotFound => Message::Buffer(Buffer::New {
-                                    buffer: String::new(),
-                                    path: p,
-                                    ext,
-                                }),
-                                _ => Message::Buffer(Buffer::Status(Err(e.to_string()))),
-                            },
-                        };
-                        to_string(&buffer).map(|json| proxy.send_event(Message::Eval(json)))
-                    });
+                            _ => Message::Buffer(Buffer::Status(Err(err.to_string()))),
+                        },
+                    };
+                    self.send(buffer);
                 }
-                _ => (),
-            },
-            Message::Eval(s) => match &mut self.context {
-                Some(c) => {
-                    c.webview
-                        .evaluate_script(&format!("window.Editor.receive({})", s));
+                _ => {
+                    self.send(Message::Buffer(buffer));
                 }
-                None => (),
             },
             Message::Module(m) => match m {
                 Module::Load { key } => {
                     if let Some(mut child) = self.alist.remove(&key) {
                         child.kill();
                     }
-                    // let mut p = self.client.mod_list.clone();
                     self.client.mod_list.push(&key);
                     match Command::new(&self.client.mod_list).spawn() {
                         Ok(mut child) => {
@@ -244,7 +293,9 @@ impl App {
                             });
                             self.alist.insert(key, child);
                         }
-                        Err(_) => {}
+                        Err(_) => {
+                            // println!("")
+                        }
                     }
                     self.client.mod_list.pop();
                 }
@@ -262,24 +313,66 @@ impl App {
                     None => (),
                 },
             },
-            Message::Port(port) => match &port {
+            Message::Port(port) => match port {
                 Port::Spin { key } => {
                     self.client.port_list.push(&key);
-                    match read(&self.client.port_list) {
-                        Ok(_) => {}
+                    match read_to_string(&self.client.port_list) {
+                        Ok(file) => {
+                            if let Some(context) = &mut self.context {
+                                context.webview.evaluate_script(&format!(
+                                    "window.Editor.open_port(`{}`, `{}`)",
+                                    key, file
+                                ));
+                            }
+                        }
                         Err(_) => {}
                     }
                     self.client.port_list.pop();
                 }
                 Port::Send { .. } | Port::Wipe { .. } => {
-                    self.proxy
-                        .send_event(Message::Eval(to_string(&Message::Port(port)).unwrap()));
+                    self.send(Message::Port(port));
                 }
             },
             Message::Cursor(_) => {
-                self.proxy
-                    .send_event(Message::Eval(to_string(&message).unwrap()));
+                self.send(message);
             }
+            Message::Lane(lane) => match lane {
+                Lane::Open { key } => {
+                    let mut attr = self.attr.clone();
+                    attr.visible = false;
+                    let proxy = self.proxy.clone();
+                    let webview_builder = WebViewBuilder::new().with_ipc_handler(move |request| {
+                        from_str(request.body()).map(|msg: Message| proxy.send_event(msg));
+                    });
+                    let window = event_loop.create_window(attr).unwrap();
+                    let mut root = self.client.lane_list.clone();
+                    root.push(&key);
+                    let proc = Proc { root };
+                    let webview = webview_builder
+                        .with_url(format!("{}://index.html", key))
+                        .with_custom_protocol(key.clone(), move |_url, request| proc.serve(request))
+                        .build(&window)
+                        .unwrap();
+                    self.sub_context.insert(
+                        key,
+                        Context {
+                            window,
+                            webview,
+                            scale: 1.0,
+                        },
+                    );
+                }
+                Lane::Wipe { key } => {
+                    self.sub_context.remove(&key);
+                }
+                Lane::Send { key, data } => {
+                    if let Some(context) = self.sub_context.get_mut(&key) {
+                        context
+                            .webview
+                            .evaluate_script(&format!("window.receive({})", data));
+                    }
+                }
+            },
         }
     }
 
@@ -300,7 +393,7 @@ impl ApplicationHandler<Message> for App {
         self.handle_window_event(event, event_loop)
     }
 
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, message: Message) {
-        self.handle_message(message)
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, message: Message) {
+        self.handle_message(message, event_loop)
     }
 }

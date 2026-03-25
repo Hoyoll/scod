@@ -3,15 +3,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
 pub enum Message {
-    Window(Win),
+    Window { to: For, win: Win },
     Buffer(Buffer),
     Module(Module),
     Port(Port),
-    // Alias(PathBuf),
+    Lane(Lane),
     Cursor(Cursor),
-    #[serde(skip_serializing, skip_deserializing)]
-    /// The String here IS a serialized Message!
-    Eval(String),
 }
 
 #[derive(Deserialize, Serialize)]
@@ -38,12 +35,37 @@ pub enum Port {
 }
 
 #[derive(Deserialize, Serialize)]
+#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
+pub enum Lane {
+    Open {
+        key: String,
+    },
+    Wipe {
+        key: String,
+    },
+    Send {
+        key: String,
+        data: serde_json::Value,
+    },
+}
+
+#[derive(Deserialize, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum Win {
-    Ready,
+    Focus,
+    Hide,
     Close,
     ZoomIn,
     ZoomOut,
+    Maximize,
+    Resize { width: f64, height: f64 },
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "for", content = "payload", rename_all = "UPPERCASE")]
+pub enum For {
+    Main,
+    Member(String),
 }
 
 #[derive(Deserialize, Serialize)]

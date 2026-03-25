@@ -13,6 +13,7 @@ pub type Key = String;
 pub struct Client {
     pub mod_list: PathBuf, // pub
     pub port_list: PathBuf,
+    pub lane_list: PathBuf,
 }
 
 impl Client {
@@ -23,9 +24,11 @@ impl Client {
         let mut sel = Self {
             mod_list: home.clone(),
             port_list: home.clone(),
+            lane_list: home.clone(),
         };
         sel.mod_list.push("mod");
         sel.port_list.push("port");
+        sel.lane_list.push("lane");
         sel
     }
 }

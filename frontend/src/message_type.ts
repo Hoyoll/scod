@@ -4,10 +4,23 @@ import type { editor } from "monaco-editor"
 
 export type WindowP = "READY" | "ZOOMIN" | "ZOOMOUT" | "CLOSE"
 
-export type PortP = {
-    key: string,
-    data: any
-}
+export type PortP =
+    | {
+        tag: "SPIN", payload: {
+            key: string
+        }
+    }
+    | {
+        tag: "SEND", payload: {
+            key: string,
+            data: any
+        }
+    }
+    | {
+        tag: "WIPE", payload: {
+            key: string
+        }
+    }
 
 export type ModuleP =
     | {
@@ -115,6 +128,14 @@ export type CursorP =
     | {
         /// it will just assume you want to insert in the cursor position
         tag: "INSERT", payload: string
+    }
+    | {
+        tag: "CHANGED", payload: {
+            position: {
+                column: number,
+                line: number
+            }
+        }
     }
 
 export type Message =
