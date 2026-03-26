@@ -6,8 +6,8 @@ pub enum Message {
     Window { to: For, win: Win },
     Buffer(Buffer),
     Module(Module),
-    Port(Port),
-    Lane(Lane),
+    // Port(Port),
+    Pane(Pane),
     Cursor(Cursor),
 }
 
@@ -36,7 +36,7 @@ pub enum Port {
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
-pub enum Lane {
+pub enum Pane {
     Open {
         key: String,
     },
@@ -59,6 +59,7 @@ pub enum Win {
     ZoomOut,
     Maximize,
     Resize { width: f64, height: f64 },
+    Reposition { x: f64, y: f64 },
 }
 
 #[derive(Deserialize, Serialize)]

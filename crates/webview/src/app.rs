@@ -1,7 +1,7 @@
 use scod_core::{
     alias::AList,
     client::Client,
-    message::{Buffer, For, Lane, Message, Module, Port, Win},
+    message::{Buffer, For, Message, Module, Pane, Win},
 };
 use serde_json::from_str;
 use std::{
@@ -16,13 +16,13 @@ use std::{
 };
 use winit::{
     application::ApplicationHandler,
-    event::WindowEvent,
+    event::{KeyEvent, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoopProxy},
     window::{Window, WindowAttributes},
 };
 use wry::{
     WebView, WebViewBuilder,
-    dpi::{LogicalSize, Size},
+    dpi::{LogicalPosition, LogicalSize, Size},
     http::{Request, Response, StatusCode},
 };
 
@@ -231,6 +231,10 @@ impl App {
                         }
                         Win::Maximize => {
                             c.window.set_maximized(true);
+                            // c.window.set_outer_position(LogicalPosition::new(x, y));
+                        }
+                        Win::Reposition { x, y } => {
+                            c.window.set_outer_position(LogicalPosition::new(x, y));
                         }
                     };
                 }
@@ -313,31 +317,11 @@ impl App {
                     None => (),
                 },
             },
-            Message::Port(port) => match port {
-                Port::Spin { key } => {
-                    self.client.port_list.push(&key);
-                    match read_to_string(&self.client.port_list) {
-                        Ok(file) => {
-                            if let Some(context) = &mut self.context {
-                                context.webview.evaluate_script(&format!(
-                                    "window.Editor.open_port(`{}`, `{}`)",
-                                    key, file
-                                ));
-                            }
-                        }
-                        Err(_) => {}
-                    }
-                    self.client.port_list.pop();
-                }
-                Port::Send { .. } | Port::Wipe { .. } => {
-                    self.send(Message::Port(port));
-                }
-            },
             Message::Cursor(_) => {
                 self.send(message);
             }
-            Message::Lane(lane) => match lane {
-                Lane::Open { key } => {
+            Message::Pane(lane) => match lane {
+                Pane::Open { key } => {
                     let mut attr = self.attr.clone();
                     attr.visible = false;
                     let proxy = self.proxy.clone();
@@ -345,7 +329,7 @@ impl App {
                         from_str(request.body()).map(|msg: Message| proxy.send_event(msg));
                     });
                     let window = event_loop.create_window(attr).unwrap();
-                    let mut root = self.client.lane_list.clone();
+                    let mut root = self.client.pane_list.clone();
                     root.push(&key);
                     let proc = Proc { root };
                     let webview = webview_builder
@@ -362,10 +346,10 @@ impl App {
                         },
                     );
                 }
-                Lane::Wipe { key } => {
+                Pane::Wipe { key } => {
                     self.sub_context.remove(&key);
                 }
-                Lane::Send { key, data } => {
+                Pane::Send { key, data } => {
                     if let Some(context) = self.sub_context.get_mut(&key) {
                         context
                             .webview
