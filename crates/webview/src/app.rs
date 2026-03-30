@@ -1,7 +1,7 @@
 use scod_core::{
     alias::AList,
     client::Client,
-    message::{Buffer, For, Message, Module, Pane, Win},
+    message::{Action, Buffer, Message, Module, Pane},
 };
 use serde_json::from_str;
 use std::{
@@ -200,45 +200,6 @@ impl App {
 
     fn handle_message(&mut self, message: Message, event_loop: &ActiveEventLoop) {
         match message {
-            Message::Window { to, win } => {
-                let c = match to {
-                    For::Main => self.context.as_mut(),
-                    For::Member(key) => self.sub_context.get_mut(&key),
-                };
-                if let Some(c) = c {
-                    match win {
-                        Win::Focus => {
-                            c.window.set_visible(true);
-                            c.webview.set_visible(true);
-                            c.window.focus_window();
-                        }
-                        Win::Close => todo!(),
-                        Win::ZoomIn => {
-                            c.scale += 0.1;
-                            c.webview.zoom(c.scale);
-                        }
-                        Win::ZoomOut => {
-                            c.scale -= 0.1;
-                            c.webview.zoom(c.scale);
-                        }
-                        Win::Resize { width, height } => {
-                            c.window
-                                .request_inner_size(Size::Logical(LogicalSize::new(width, height)));
-                        }
-                        Win::Hide => {
-                            c.webview.set_visible(false);
-                            c.window.set_visible(false);
-                        }
-                        Win::Maximize => {
-                            c.window.set_maximized(true);
-                            // c.window.set_outer_position(LogicalPosition::new(x, y));
-                        }
-                        Win::Reposition { x, y } => {
-                            c.window.set_outer_position(LogicalPosition::new(x, y));
-                        }
-                    };
-                }
-            }
             Message::Buffer(buffer) => match buffer {
                 Buffer::Write { buffer, path } => match fs::write(path, buffer) {
                     Ok(_) => {
@@ -271,17 +232,26 @@ impl App {
                     };
                     self.send(buffer);
                 }
+                Buffer::Focus => {
+                    if let Some(context) = &mut self.context {
+                        context.window.set_visible(true);
+                        context.webview.set_visible(true);
+                        context.webview.focus();
+                    }
+                }
                 _ => {
                     self.send(Message::Buffer(buffer));
                 }
             },
-            Message::Module(m) => match m {
-                Module::Load { key } => {
-                    if let Some(mut child) = self.alist.remove(&key) {
+            Message::Module(m) => match &m {
+                Module::Open { to } => {
+                    if let Some(mut child) = self.alist.remove(to) {
                         child.kill();
                     }
-                    self.client.mod_list.push(&key);
-                    match Command::new(&self.client.mod_list).spawn() {
+                    let mut path = self.client.mod_list.clone();
+                    path.push(&to);
+                    path.push("init");
+                    match Command::new(&path).spawn() {
                         Ok(mut child) => {
                             let child_stdout = child.stdout.take().unwrap();
                             let proxy = self.proxy.clone();
@@ -295,23 +265,24 @@ impl App {
                                     }
                                 }
                             });
-                            self.alist.insert(key, child);
+                            self.alist.insert(to.clone(), child);
                         }
                         Err(_) => {
                             // println!("")
                         }
                     }
-                    self.client.mod_list.pop();
                 }
-                Module::Kill { key } => {
-                    if let Some(mut child) = self.alist.remove(&key) {
+                Module::Wipe { to } => {
+                    if let Some(mut child) = self.alist.remove(to) {
                         child.kill().unwrap();
                     }
                 }
-                Module::Call { key, data } => match self.alist.get_mut(&key) {
+                Module::Send(payload) => match self.alist.get_mut(&payload.to) {
                     Some(child) => {
                         if let Some(child_stdin) = &mut child.stdin {
-                            writeln!(child_stdin, "{}", &data);
+                            serde_json::to_value(payload).map(|json| {
+                                writeln!(child_stdin, "{}", &json);
+                            });
                         }
                     }
                     None => (),
@@ -320,8 +291,8 @@ impl App {
             Message::Cursor(_) => {
                 self.send(message);
             }
-            Message::Pane(lane) => match lane {
-                Pane::Open { key } => {
+            Message::Pane(pane) => match pane {
+                Pane::Open { to } => {
                     let mut attr = self.attr.clone();
                     attr.visible = false;
                     let proxy = self.proxy.clone();
@@ -329,16 +300,16 @@ impl App {
                         from_str(request.body()).map(|msg: Message| proxy.send_event(msg));
                     });
                     let window = event_loop.create_window(attr).unwrap();
-                    let mut root = self.client.pane_list.clone();
-                    root.push(&key);
+                    let mut root = self.client.mod_list.clone();
+                    root.push(&to);
                     let proc = Proc { root };
                     let webview = webview_builder
-                        .with_url(format!("{}://index.html", key))
-                        .with_custom_protocol(key.clone(), move |_url, request| proc.serve(request))
+                        .with_url(format!("{}://index.html", to))
+                        .with_custom_protocol(to.clone(), move |_url, request| proc.serve(request))
                         .build(&window)
                         .unwrap();
                     self.sub_context.insert(
-                        key,
+                        to.clone(),
                         Context {
                             window,
                             webview,
@@ -346,14 +317,50 @@ impl App {
                         },
                     );
                 }
-                Pane::Wipe { key } => {
-                    self.sub_context.remove(&key);
+                Pane::Send(payload) => {
+                    if let Some(context) = self.sub_context.get_mut(&payload.to) {
+                        serde_json::to_value(&payload).map(|json| {
+                            context
+                                .webview
+                                .evaluate_script(&format!("window.receive({})", json));
+                        });
+                    }
                 }
-                Pane::Send { key, data } => {
-                    if let Some(context) = self.sub_context.get_mut(&key) {
-                        context
-                            .webview
-                            .evaluate_script(&format!("window.receive({})", data));
+                Pane::Misc { to, action } => {
+                    if let Some(c) = self.sub_context.get_mut(&to) {
+                        match action {
+                            Action::Focus => {
+                                c.window.set_visible(true);
+                                c.webview.set_visible(true);
+                                c.window.focus_window();
+                            }
+                            Action::Close => {
+                                // con = None;
+                            }
+                            Action::ZoomIn => {
+                                c.scale += 0.1;
+                                c.webview.zoom(c.scale);
+                            }
+                            Action::ZoomOut => {
+                                c.scale -= 0.1;
+                                c.webview.zoom(c.scale);
+                            }
+                            Action::Resize { width, height } => {
+                                c.window.request_inner_size(Size::Logical(LogicalSize::new(
+                                    width, height,
+                                )));
+                            }
+                            Action::Hide => {
+                                c.webview.set_visible(false);
+                                c.window.set_visible(false);
+                            }
+                            Action::Maximize => {
+                                c.window.set_maximized(true);
+                            }
+                            Action::Reposition { x, y } => {
+                                c.window.set_outer_position(LogicalPosition::new(x, y));
+                            }
+                        };
                     }
                 }
             },

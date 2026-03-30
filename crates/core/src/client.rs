@@ -12,7 +12,6 @@ pub type Key = String;
 #[derive(Serialize, Deserialize)]
 pub struct Client {
     pub mod_list: PathBuf, // pub
-    pub pane_list: PathBuf,
 }
 
 impl Client {
@@ -21,10 +20,8 @@ impl Client {
         home.push(".scod");
         let mut sel = Self {
             mod_list: home.clone(),
-            pane_list: home.clone(),
         };
         sel.mod_list.push("mod");
-        sel.pane_list.push("pane");
         sel
     }
 }

@@ -3,10 +3,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
 pub enum Message {
-    Window { to: For, win: Win },
     Buffer(Buffer),
     Module(Module),
-    // Port(Port),
     Pane(Pane),
     Cursor(Cursor),
 }
@@ -14,44 +12,29 @@ pub enum Message {
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
 pub enum Module {
-    Load { key: String },
-    Kill { key: String },
-    Call { key: String, data: String },
+    Open { to: String },
+    Wipe { to: String },
+    Send(Payload),
 }
 
 #[derive(Deserialize, Serialize)]
-#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
-pub enum Port {
-    Spin {
-        key: String,
-    },
-    Send {
-        key: String,
-        data: serde_json::Value,
-    },
-    Wipe {
-        key: String,
-    },
+pub struct Payload {
+    pub to: String,
+    pub from: String,
+    pub data: serde_json::Value,
 }
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
 pub enum Pane {
-    Open {
-        key: String,
-    },
-    Wipe {
-        key: String,
-    },
-    Send {
-        key: String,
-        data: serde_json::Value,
-    },
+    Open { to: String },
+    Send(Payload),
+    Misc { to: String, action: Action },
 }
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
-pub enum Win {
+pub enum Action {
     Focus,
     Hide,
     Close,
@@ -60,13 +43,6 @@ pub enum Win {
     Maximize,
     Resize { width: f64, height: f64 },
     Reposition { x: f64, y: f64 },
-}
-
-#[derive(Deserialize, Serialize)]
-#[serde(tag = "for", content = "payload", rename_all = "UPPERCASE")]
-pub enum For {
-    Main,
-    Member(String),
 }
 
 #[derive(Deserialize, Serialize)]
@@ -99,8 +75,8 @@ pub enum Buffer {
     },
     Open(String),
     Status(Result<String, String>),
-    Focus,
     Close,
+    Focus,
     Save(Save),
 }
 
