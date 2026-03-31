@@ -335,7 +335,7 @@ impl App {
                                 c.window.focus_window();
                             }
                             Action::Close => {
-                                // con = None;
+                                self.sub_context.remove(&to);
                             }
                             Action::ZoomIn => {
                                 c.scale += 0.1;
