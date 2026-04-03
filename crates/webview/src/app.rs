@@ -9,9 +9,9 @@ use std::{
     collections::HashMap,
     env,
     fs::{self, read, read_to_string},
-    io::{BufRead, BufReader, ErrorKind, Write},
+    io::{BufRead, BufReader, ErrorKind, Stdin, Write, stdin},
     path::{Path, PathBuf},
-    process::{ChildStdin, Command},
+    process::{ChildStdin, Command, Stdio},
     thread,
 };
 use winit::{
@@ -198,7 +198,24 @@ impl App {
         }
     }
 
-    fn handle_message(&mut self, message: Message, event_loop: &ActiveEventLoop) {
+    // fn handle_window_event(&self, event: WindowEvent, event_loop: &ActiveEventLoop) {}
+}
+
+impl ApplicationHandler<Message> for App {
+    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        self.create_context(event_loop);
+    }
+
+    fn window_event(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        _window_id: winit::window::WindowId,
+        event: winit::event::WindowEvent,
+    ) {
+        // self.handle_window_event(event, event_loop)
+    }
+
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, message: Message) {
         match message {
             Message::Buffer(buffer) => match buffer {
                 Buffer::Write { buffer, path } => match fs::write(path, buffer) {
@@ -215,22 +232,33 @@ impl App {
                         Some(e) => e.to_string_lossy().to_string(),
                         None => "".to_string(),
                     };
-                    let buffer = match read_to_string(&p) {
-                        Ok(buff) => Message::Buffer(Buffer::New {
-                            buffer: buff,
-                            path: p,
-                            ext,
-                        }),
-                        Err(err) => match err.kind() {
-                            ErrorKind::NotFound => Message::Buffer(Buffer::New {
-                                buffer: String::new(),
+                    let proxy = self.proxy.clone();
+                    // To-Do: More robust io
+                    // match fs::metadata(&p) {
+                    //     Ok(m) => if 0 == m.len() {},
+                    //     Err(e) => match e.kind() {
+                    //         ErrorKind::NotFound => {}
+                    //         _ => {}
+                    //     },
+                    // }
+                    thread::spawn(move || {
+                        let buffer = match read_to_string(&p) {
+                            Ok(buff) => Message::Buffer(Buffer::New {
+                                buffer: buff,
                                 path: p,
                                 ext,
                             }),
-                            _ => Message::Buffer(Buffer::Status(Err(err.to_string()))),
-                        },
-                    };
-                    self.send(buffer);
+                            Err(err) => match err.kind() {
+                                ErrorKind::NotFound => Message::Buffer(Buffer::New {
+                                    buffer: String::new(),
+                                    path: p,
+                                    ext,
+                                }),
+                                _ => Message::Buffer(Buffer::Status(Err(err.to_string()))),
+                            },
+                        };
+                        proxy.send_event(buffer)
+                    });
                 }
                 Buffer::Focus => {
                     if let Some(context) = &mut self.context {
@@ -239,19 +267,22 @@ impl App {
                         context.webview.focus();
                     }
                 }
+                Buffer::New { .. } => {
+                    self.send(Message::Buffer(buffer));
+                }
                 _ => {
                     self.send(Message::Buffer(buffer));
                 }
             },
             Message::Module(m) => match &m {
                 Module::Open { to } => {
-                    if let Some(mut child) = self.alist.remove(to) {
-                        child.kill();
+                    if let Some(_) = self.alist.get(to) {
+                        return;
                     }
                     let mut path = self.client.mod_list.clone();
                     path.push(&to);
                     path.push("init");
-                    match Command::new(&path).spawn() {
+                    match Command::new(&path).stdout(Stdio::piped()).spawn() {
                         Ok(mut child) => {
                             let child_stdout = child.stdout.take().unwrap();
                             let proxy = self.proxy.clone();
@@ -365,26 +396,5 @@ impl App {
                 }
             },
         }
-    }
-
-    fn handle_window_event(&self, event: WindowEvent, event_loop: &ActiveEventLoop) {}
-}
-
-impl ApplicationHandler<Message> for App {
-    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        self.create_context(event_loop);
-    }
-
-    fn window_event(
-        &mut self,
-        event_loop: &winit::event_loop::ActiveEventLoop,
-        _window_id: winit::window::WindowId,
-        event: winit::event::WindowEvent,
-    ) {
-        self.handle_window_event(event, event_loop)
-    }
-
-    fn user_event(&mut self, event_loop: &ActiveEventLoop, message: Message) {
-        self.handle_message(message, event_loop)
     }
 }
