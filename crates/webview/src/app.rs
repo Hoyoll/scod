@@ -1,7 +1,7 @@
 use scod_core::{
     alias::AList,
     client::Client,
-    message::{Action, Buffer, Message, Module, Pane},
+    message::{Action, Buffer, Editor, Message, Pane, Want},
 };
 use serde_json::from_str;
 use std::{
@@ -9,9 +9,8 @@ use std::{
     collections::HashMap,
     env,
     fs::{self, read, read_to_string},
-    io::{BufRead, BufReader, ErrorKind, Stdin, Write, stdin},
-    path::{Path, PathBuf},
-    process::{ChildStdin, Command, Stdio},
+    io::ErrorKind,
+    path::PathBuf,
     sync::mpsc::{self, Sender},
     thread::{self, JoinHandle},
 };
@@ -143,29 +142,22 @@ fn buffer_handler(proxy: &EventLoopProxy<Message>, buffer: Buffer) {
                 println!("FILE PERMISSION ISSUE, PROBABLY!")
             }
         },
-        Buffer::Open(p) => {
-            let path = Path::new(&p);
-            let ext = path
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("")
-                .to_string();
+        Buffer::New { path: p, .. } => {
             let buffer = match read_to_string(&p) {
                 Ok(buff) => Message::Buffer(Buffer::New {
-                    buffer: buff,
+                    buffer: Some(buff),
                     path: p,
-                    ext,
                 }),
                 Err(err) => match err.kind() {
                     ErrorKind::NotFound => Message::Buffer(Buffer::New {
-                        buffer: String::new(),
+                        buffer: None,
                         path: p,
-                        ext,
                     }),
-                    _ => Message::Buffer(Buffer::Status(Err(err.to_string()))),
+                    _ => Message::Buffer(Buffer::Error(err.to_string())),
                 },
             };
-            proxy.send_event(buffer);
+
+            proxy.send_event(buffer.into_json());
         }
         _ => (),
     }
@@ -245,17 +237,15 @@ impl App {
         });
     }
 
-    fn send(&mut self, message: Message) {
+    fn simple_send_to_js(&mut self, message: Message) {
         if let Some(context) = &mut self.context {
-            if let Ok(json) = serde_json::to_value(&message) {
+            if let Ok(json) = serde_json::to_string(&message) {
                 context
                     .webview
                     .evaluate_script(&format!("window.Editor.receive({});", json));
             }
         }
     }
-
-    // fn handle_window_event(&self, event: WindowEvent, event_loop: &ActiveEventLoop) {}
 }
 
 impl ApplicationHandler<Message> for App {
@@ -265,7 +255,7 @@ impl ApplicationHandler<Message> for App {
 
     fn window_event(
         &mut self,
-        event_loop: &winit::event_loop::ActiveEventLoop,
+        _event_loop: &winit::event_loop::ActiveEventLoop,
         _window_id: winit::window::WindowId,
         event: winit::event::WindowEvent,
     ) {
@@ -276,7 +266,7 @@ impl ApplicationHandler<Message> for App {
                     state: ElementState::Pressed,
                     ..
                 } => {
-                    self.send(Message::Buffer(Buffer::Focus));
+                    // self.send_to_js(Message::Buffer(Buffer::Focus));
                 }
                 _ => (),
             },
@@ -287,72 +277,13 @@ impl ApplicationHandler<Message> for App {
     fn user_event(&mut self, event_loop: &ActiveEventLoop, message: Message) {
         match message {
             Message::Buffer(buffer) => match buffer {
-                Buffer::Write { .. } | Buffer::Open(_) => {
+                Buffer::Write { .. } | Buffer::New { .. } => {
                     self.buffer_io.send(buffer);
                 }
-                Buffer::Focus => {
-                    if let Some(context) = &mut self.context {
-                        context.window.set_visible(true);
-                        context.webview.set_visible(true);
-                        context.webview.focus();
-                    }
-                }
                 _ => {
-                    self.send(Message::Buffer(buffer));
+                    self.simple_send_to_js(Message::Buffer(buffer));
                 }
             },
-            // Message::Module(m) => match &m {
-            //     Module::Open { to } => {
-            //         if let Some(_) = self.alist.get(to) {
-            //             return;
-            //         }
-            //         let mut path = self.client.mod_list.clone();
-            //         path.push(&to);
-            //         path.push("init");
-            //         match Command::new(&path)
-            //             .stdout(Stdio::piped())
-            //             .stdin(Stdio::piped())
-            //             .spawn()
-            //         {
-            //             Ok(mut child) => {
-            //                 let child_stdout = child.stdout.take().unwrap();
-            //                 let proxy = self.proxy.clone();
-            //                 thread::spawn(move || {
-            //                     let buf = BufReader::new(child_stdout);
-            //                     for line in buf.lines() {
-            //                         if let Ok(line) = line {
-            //                             from_str(&line).map(|msg: Message| {
-            //                                 proxy.send_event(msg);
-            //                             });
-            //                         }
-            //                     }
-            //                 });
-            //                 self.alist.insert(to.clone(), child);
-            //             }
-            //             Err(_) => {
-            //                 // println!("")
-            //             }
-            //         }
-            //     }
-            //     Module::Wipe { to } => {
-            //         if let Some(mut child) = self.alist.remove(to) {
-            //             child.kill().unwrap();
-            //         }
-            //     }
-            //     Module::Send(payload) => match self.alist.get_mut(&payload.to) {
-            //         Some(child) => {
-            //             if let Some(child_stdin) = &mut child.stdin {
-            //                 serde_json::to_value(payload).map(|json| {
-            //                     writeln!(child_stdin, "{}", &json);
-            //                 });
-            //             }
-            //         }
-            //         None => (),
-            //     },
-            // },
-            Message::Cursor(_) => {
-                self.send(message);
-            }
             Message::Pane(pane) => match pane {
                 Pane::Open { to } => {
                     let mut attr = self.attr.clone();
@@ -378,15 +309,6 @@ impl ApplicationHandler<Message> for App {
                             scale: 1.0,
                         },
                     );
-                }
-                Pane::Send(payload) => {
-                    if let Some(context) = self.sub_context.get_mut(&payload.to) {
-                        serde_json::to_value(&payload).map(|json| {
-                            context
-                                .webview
-                                .evaluate_script(&format!("window.receive({});", json));
-                        });
-                    }
                 }
                 Pane::Misc { to, action } => {
                     if let Some(c) = self.sub_context.get_mut(&to) {
@@ -425,8 +347,51 @@ impl ApplicationHandler<Message> for App {
                         };
                     }
                 }
+                Pane::Send { to, response } => {
+                    if let Some(context) = self.sub_context.get_mut(&to) {
+                        serde_json::to_string(&response).map(|json| {
+                            context
+                                .webview
+                                .evaluate_script(&format!("window.receive({});", json));
+                        });
+                    }
+                }
+                Pane::Want { from, request } => match request {
+                    Want::Custom(_) => {
+                        self.proxy.send_event(Message::Pane(Pane::Send {
+                            to: from,
+                            response: request,
+                        }));
+                    }
+                    Want::Buffer(_) => {
+                        self.simple_send_to_js(Message::Pane(Pane::Want { from, request }));
+                    }
+                },
             },
-            _ => (),
+            Message::Json(json) => {
+                if let Some(context) = &mut self.context {
+                    context
+                        .webview
+                        .evaluate_script(&format!("window.Editor.receive({});", json));
+                }
+            }
+            Message::Editor(editor) => {
+                if let Some(context) = &mut self.context {
+                    match editor {
+                        Editor::Focus => {
+                            context.window.focus_window();
+                        }
+                        Editor::Maximize => {
+                            context.window.set_maximized(true);
+                        }
+                        Editor::FullScreen => {
+                            context
+                                .window
+                                .set_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
+                        }
+                    }
+                }
+            } // _ => (),
         }
     }
 }

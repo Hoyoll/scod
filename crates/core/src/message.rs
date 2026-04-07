@@ -1,39 +1,92 @@
+use core::str;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
 pub enum Message {
     Buffer(Buffer),
-    Module(Module),
     Pane(Pane),
-    Cursor(Cursor),
+    Editor(Editor),
+    /// Like the name suggest, it will make it cross the rust <-> js boundary,
+    /// Like Pane::Send but for the editor
+    Json(String),
 }
 
-#[derive(Deserialize, Serialize)]
-#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
-pub enum Module {
-    Open { to: String },
-    Wipe { to: String },
-    Send(Payload),
-}
-
-#[derive(Deserialize, Serialize)]
-pub struct Payload {
-    pub to: String,
-    pub from: String,
-    pub data: serde_json::Value,
-}
-
-#[derive(Deserialize, Serialize)]
-#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
-pub enum Pane {
-    Open { to: String },
-    Send(Payload),
-    Misc { to: String, action: Action },
+impl Message {
+    pub fn into_json(&self) -> Message {
+        Message::Json(serde_json::to_string(self).unwrap())
+    }
 }
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
+pub enum Editor {
+    Focus,
+    Maximize,
+    FullScreen,
+}
+
+// #[derive(Deserialize, Serialize)]
+// #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
+// pub enum Module {
+//     Open { to: String },
+//     Wipe { to: String },
+//     Send(Payload),
+// }
+
+// #[derive(Deserialize, Serialize)]
+// pub struct Payload {
+//     pub to: String,
+//     pub from: String,
+//     pub data: serde_json::Value,
+// }
+
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
+pub enum Pane {
+    Open {
+        to: String,
+    },
+    Misc {
+        to: String,
+        action: Action,
+    },
+    Send {
+        to: String,
+        response: Want,
+    },
+    /// So you want to send "empty" Want which denode that it's a request
+    /// and you will eventually received a "filled" Want
+    Want {
+        from: String,
+        request: Want,
+    },
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
+pub enum Want {
+    Custom(String),
+    Buffer(WBuffer),
+}
+
+#[derive(Deserialize, Serialize)]
+pub enum WBuffer {
+    Peek {
+        text: Option<String>,
+        path: String,
+        line: Position<i32>,
+        column: Position<i32>,
+    },
+    Copy {
+        path: String,
+        buffer: Option<String>,
+    },
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
 pub enum Action {
     Focus,
     Hide,
@@ -45,22 +98,22 @@ pub enum Action {
     Reposition { x: f64, y: f64 },
 }
 
-#[derive(Deserialize, Serialize)]
-#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
-pub enum Cursor {
-    Move { line: i32, column: i32 },
-    Jump { line: i32, column: i32 },
-    Insert(String),
-}
+// #[derive(Deserialize, Serialize)]
+// #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
+// pub enum Cursor {
+//     Move { line: i32, column: i32 },
+//     Jump { line: i32, column: i32 },
+//     Clone { line: i32, column: i32 },
+//     Insert(String),
+// }
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
 pub enum Buffer {
     New {
-        buffer: String,
         /// The PATH LOOKS like THIS: "path/to/file.txt"!
         path: String,
-        ext: String,
+        buffer: Option<String>,
     },
     /// To keep it simple, number == 0 WILL automatically resolve into the back of column/line
     Edit {
@@ -70,22 +123,22 @@ pub enum Buffer {
         column: Position<i32>,
     },
     Write {
-        buffer: String,
         path: String,
+        buffer: String,
     },
-    Open(String),
-    Status(Result<String, String>),
-    Close,
-    Focus,
-    Save(Save),
+    Error(String), // Open(String),
+                   // Status(Result<String, String>),
+                   // Close,
+                   // Focus,
+                   // Save(Save),
 }
 
-#[derive(Deserialize, Serialize)]
-#[serde(tag = "for", content = "path", rename_all = "UPPERCASE")]
-pub enum Save {
-    Current,
-    Path(String),
-}
+// #[derive(Deserialize, Serialize)]
+// #[serde(tag = "for", content = "path", rename_all = "UPPERCASE")]
+// pub enum Save {
+//     Current,
+//     Path(String),
+// }
 
 #[derive(Deserialize, Serialize)]
 pub struct Position<T> {

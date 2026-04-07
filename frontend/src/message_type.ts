@@ -2,6 +2,61 @@
 /// Freeze my ass...
 import type { editor } from "monaco-editor"
 
+export type Message =
+    | {
+        tag: "BUFFER", payload:
+        | {
+            tag: "NEW", payload: {
+                path: string,
+                buffer: string | null
+            }
+        }
+        | {
+            tag: "WRITE", payload: {
+                path: string,
+                buffer: string
+            }
+        }
+        | {
+            tag: "ERROR", payload: string
+        }
+        | {
+            tag: "EDIT", payload: {
+                text: string,
+                path: string,
+                line: Position,
+                number: Position
+            }
+        }
+    }
+    | {
+        tag: "PANE", payload: {
+            tag: "WANT", payload: {
+                from: string,
+                request:
+                | {
+
+                }
+            }
+        }
+    }
+    | {
+        tag: "RUST", payload: string
+    }
+export type Want =
+    | {
+        tag: "CUSTOM", payload: string
+    }
+    | {
+        tag: "BUFFER",
+    }
+
+export type Position = {
+    start: number,
+    end: number
+}
+
+
 export type WindowP = "READY" | "ZOOMIN" | "ZOOMOUT" | "CLOSE"
 
 export type PortP =
@@ -138,31 +193,31 @@ export type CursorP =
         }
     }
 
-export type Message =
-    | {
-        tag: "WINDOW", payload: WindowP
+// export type Message =
+//     | {
+//         tag: "WINDOW", payload: WindowP
 
-    }
-    /// routed for local stuff
-    | {
-        tag: "PORT", payload: PortP
-    }
-    /// routed for backend stuff
-    | {
-        tag: "MODULE", payload: ModuleP
-    }
-    | {
-        tag: "BUFFER", payload: BufferP
-    }
-    | {
-        tag: "CURSOR", payload: CursorP
-    }
-    | {
-        tag: "COMMAND", payload: string,
-    }
-    | {
-        tag: "ALIAS", payload: string
-    }
+//     }
+//     /// routed for local stuff
+//     | {
+//         tag: "PORT", payload: PortP
+//     }
+//     /// routed for backend stuff
+//     | {
+//         tag: "MODULE", payload: ModuleP
+//     }
+//     | {
+//         tag: "BUFFER", payload: BufferP
+//     }
+//     | {
+//         tag: "CURSOR", payload: CursorP
+//     }
+//     | {
+//         tag: "COMMAND", payload: string,
+//     }
+//     | {
+//         tag: "ALIAS", payload: string
+//     }
 
 export type Channel = (message: Message) => void
 
