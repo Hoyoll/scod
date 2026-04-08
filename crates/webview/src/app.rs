@@ -1,14 +1,14 @@
 use scod_core::{
     alias::AList,
     client::Client,
-    message::{Action, Buffer, Editor, Message, Pane, Want},
+    message::{Action, Buffer, Editor, Message, Pane, Payload, Want},
 };
 use serde_json::from_str;
 use std::{
     borrow::Cow,
     collections::HashMap,
     env,
-    fs::{self, read, read_to_string},
+    fs::{self, create_dir, create_dir_all, read, read_to_string},
     io::ErrorKind,
     path::PathBuf,
     sync::mpsc::{self, Sender},
@@ -134,32 +134,81 @@ fn mime_from_extension(ext: &str) -> &'static str {
 
 fn buffer_handler(proxy: &EventLoopProxy<Message>, buffer: Buffer) {
     match buffer {
-        Buffer::Write { buffer, path } => match fs::write(path, buffer) {
-            Ok(_) => {
-                println!("SAVED!")
+        Buffer::Dig { path, buffer } => match buffer {
+            Payload::Empty => {
+                let mesage = match fs::metadata(&path) {
+                    Ok(meta) => match meta.is_dir() {
+                        true => match fs::read_dir(&path) {
+                            Ok(dir_entry) => {
+                                let mut dirs = vec![];
+                                for dir in dir_entry {
+                                    dirs.push(dir.unwrap().path());
+                                }
+                                Message::Buffer(Buffer::Dig {
+                                    path,
+                                    buffer: Payload::Dir(dirs),
+                                })
+                            }
+                            Err(e) => Message::Buffer(Buffer::Error {
+                                path,
+                                error: e.to_string(),
+                            }),
+                        },
+                        false => match fs::read_to_string(&path) {
+                            Ok(buff) => Message::Buffer(Buffer::Dig {
+                                path,
+                                buffer: Payload::File(buff),
+                            }),
+                            Err(e) => Message::Buffer(Buffer::Error {
+                                path,
+                                error: e.to_string(),
+                            }),
+                        },
+                    },
+                    Err(e) => Message::Buffer(Buffer::Error {
+                        path,
+                        error: e.to_string(),
+                    }),
+                };
+                if let Ok(json) = serde_json::to_string(&mesage) {
+                    proxy.send_event(Message::Json(json));
+                }
             }
-            Err(_) => {
-                println!("FILE PERMISSION ISSUE, PROBABLY!")
+            Payload::File(buff) => {
+                fs::write(path, buff);
+            }
+            Payload::Dir(path_bufs) => {
+                for p in path_bufs {
+                    create_dir(p);
+                }
             }
         },
-        Buffer::New { path: p, .. } => {
-            let buffer = match read_to_string(&p) {
-                Ok(buff) => Message::Buffer(Buffer::New {
-                    buffer: Some(buff),
-                    path: p,
-                }),
-                Err(err) => match err.kind() {
-                    ErrorKind::NotFound => Message::Buffer(Buffer::New {
-                        buffer: None,
-                        path: p,
-                    }),
-                    _ => Message::Buffer(Buffer::Error(err.to_string())),
-                },
-            };
+        _ => (), // Buffer::Write { buffer, path } => match fs::write(path, buffer) {
+                 //     Ok(_) => {
+                 //         println!("SAVED!")
+                 //     }
+                 //     Err(_) => {
+                 //         println!("FILE PERMISSION ISSUE, PROBABLY!")
+                 //     }
+                 // },
+                 // Buffer::New { path: p, .. } => {
+                 //     let buffer = match read_to_string(&p) {
+                 //         Ok(buff) => Message::Buffer(Buffer::New {
+                 //             buffer: Some(buff),
+                 //             path: p,
+                 //         }),
+                 //         Err(err) => match err.kind() {
+                 //             ErrorKind::NotFound => Message::Buffer(Buffer::New {
+                 //                 buffer: None,
+                 //                 path: p,
+                 //             }),
+                 //             _ => Message::Buffer(Buffer::Error(err.to_string())),
+                 //         },
+                 //     };
 
-            proxy.send_event(buffer.into_json());
-        }
-        _ => (),
+                 //     proxy.send_event(buffer.into_json());
+                 // }
+                 // _ => (),
     }
 }
 
@@ -277,10 +326,10 @@ impl ApplicationHandler<Message> for App {
     fn user_event(&mut self, event_loop: &ActiveEventLoop, message: Message) {
         match message {
             Message::Buffer(buffer) => match buffer {
-                Buffer::Write { .. } | Buffer::New { .. } => {
+                Buffer::Dig { .. } => {
                     self.buffer_io.send(buffer);
                 }
-                _ => {
+                Buffer::Error { .. } => {
                     self.simple_send_to_js(Message::Buffer(buffer));
                 }
             },

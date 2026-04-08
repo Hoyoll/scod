@@ -1,4 +1,5 @@
 use core::str;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -83,6 +84,18 @@ pub enum WBuffer {
         path: String,
         buffer: Option<String>,
     },
+    Edit {
+        text: String,
+        path: String,
+        line: Position<i32>,
+        column: Position<i32>,
+    },
+}
+
+#[derive(Deserialize, Serialize)]
+pub enum Container<A, B> {
+    Request(A),
+    Response(B),
 }
 
 #[derive(Deserialize, Serialize)]
@@ -110,29 +123,44 @@ pub enum Action {
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
 pub enum Buffer {
-    New {
-        /// The PATH LOOKS like THIS: "path/to/file.txt"!
+    // New {
+    //     /// The PATH LOOKS like THIS: "path/to/file.txt"!
+    //     path: String,
+    //     buffer: Option<String>,
+    // },
+    // /// To keep it simple, number == 0 WILL automatically resolve into the back of column/line
+    // Edit {
+    //     text: String,
+    //     path: String,
+    //     line: Position<i32>,
+    //     column: Position<i32>,
+    // },
+    // Write {
+    //     path: String,
+    //     buffer: String,
+    // },
+    /// So if path: is None it will instead point to the current directory
+    ///
+    Dig {
         path: String,
-        buffer: Option<String>,
+        buffer: Payload,
     },
-    /// To keep it simple, number == 0 WILL automatically resolve into the back of column/line
-    Edit {
-        text: String,
+    Error {
         path: String,
-        line: Position<i32>,
-        column: Position<i32>,
+        error: String,
     },
-    Write {
-        path: String,
-        buffer: String,
-    },
-    Error(String), // Open(String),
-                   // Status(Result<String, String>),
-                   // Close,
-                   // Focus,
-                   // Save(Save),
 }
 
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
+pub enum Payload {
+    /// Empty will dig the path turning itself into File or Dir
+    Empty,
+    /// It will write into the path
+    File(String),
+    /// It will have a bunch of path in said directory if the path given is a directory
+    Dir(Vec<PathBuf>),
+}
 // #[derive(Deserialize, Serialize)]
 // #[serde(tag = "for", content = "path", rename_all = "UPPERCASE")]
 // pub enum Save {
