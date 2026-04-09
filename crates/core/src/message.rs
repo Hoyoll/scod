@@ -1,5 +1,5 @@
 use core::str;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
@@ -9,6 +9,7 @@ pub enum Message {
     Buffer(Buffer),
     Pane(Pane),
     Editor(Editor),
+    Event(Event),
     /// Like the name suggest, it will make it cross the rust <-> js boundary,
     /// Like Pane::Send but for the editor
     Json(String),
@@ -21,27 +22,23 @@ impl Message {
 }
 
 #[derive(Deserialize, Serialize)]
+#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
+pub enum Event {
+    BufferCreated(PathBuf),
+    BufferSaved(PathBuf),
+    BufferClosed(PathBuf),
+    EditorReady,
+    EditorClose,
+    Custom(String),
+}
+
+#[derive(Deserialize, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum Editor {
     Focus,
     Maximize,
     FullScreen,
 }
-
-// #[derive(Deserialize, Serialize)]
-// #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
-// pub enum Module {
-//     Open { to: String },
-//     Wipe { to: String },
-//     Send(Payload),
-// }
-
-// #[derive(Deserialize, Serialize)]
-// pub struct Payload {
-//     pub to: String,
-//     pub from: String,
-//     pub data: serde_json::Value,
-// }
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
@@ -111,44 +108,11 @@ pub enum Action {
     Reposition { x: f64, y: f64 },
 }
 
-// #[derive(Deserialize, Serialize)]
-// #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
-// pub enum Cursor {
-//     Move { line: i32, column: i32 },
-//     Jump { line: i32, column: i32 },
-//     Clone { line: i32, column: i32 },
-//     Insert(String),
-// }
-
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
 pub enum Buffer {
-    // New {
-    //     /// The PATH LOOKS like THIS: "path/to/file.txt"!
-    //     path: String,
-    //     buffer: Option<String>,
-    // },
-    // /// To keep it simple, number == 0 WILL automatically resolve into the back of column/line
-    // Edit {
-    //     text: String,
-    //     path: String,
-    //     line: Position<i32>,
-    //     column: Position<i32>,
-    // },
-    // Write {
-    //     path: String,
-    //     buffer: String,
-    // },
-    /// So if path: is None it will instead point to the current directory
-    ///
-    Dig {
-        path: String,
-        buffer: Payload,
-    },
-    Error {
-        path: String,
-        error: String,
-    },
+    Dig { path: String, buffer: Payload },
+    Error { path: String, error: String },
 }
 
 #[derive(Deserialize, Serialize)]
@@ -158,15 +122,10 @@ pub enum Payload {
     Empty,
     /// It will write into the path
     File(String),
-    /// It will have a bunch of path in said directory if the path given is a directory
-    Dir(Vec<PathBuf>),
+    Append(String),
+    // It will have a bunch of path in said directory if the path given is a directory
+    // Path(Vec<PathBuf>),
 }
-// #[derive(Deserialize, Serialize)]
-// #[serde(tag = "for", content = "path", rename_all = "UPPERCASE")]
-// pub enum Save {
-//     Current,
-//     Path(String),
-// }
 
 #[derive(Deserialize, Serialize)]
 pub struct Position<T> {

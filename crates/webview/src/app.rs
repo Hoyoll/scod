@@ -8,8 +8,8 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     env,
-    fs::{self, create_dir, create_dir_all, read, read_to_string},
-    io::ErrorKind,
+    fs::{self, File, OpenOptions, read},
+    io::Write,
     path::PathBuf,
     sync::mpsc::{self, Sender},
     thread::{self, JoinHandle},
@@ -136,79 +136,64 @@ fn buffer_handler(proxy: &EventLoopProxy<Message>, buffer: Buffer) {
     match buffer {
         Buffer::Dig { path, buffer } => match buffer {
             Payload::Empty => {
-                let mesage = match fs::metadata(&path) {
+                match fs::metadata(&path) {
                     Ok(meta) => match meta.is_dir() {
                         true => match fs::read_dir(&path) {
                             Ok(dir_entry) => {
-                                let mut dirs = vec![];
+                                let mut p = String::new();
                                 for dir in dir_entry {
-                                    dirs.push(dir.unwrap().path());
+                                    p.push_str(dir.unwrap().path().to_str().unwrap());
+                                    p.push_str("\n");
                                 }
-                                Message::Buffer(Buffer::Dig {
-                                    path,
-                                    buffer: Payload::Dir(dirs),
-                                })
+                                proxy.send_event(
+                                    Message::Buffer(Buffer::Dig {
+                                        path,
+                                        buffer: Payload::File(p),
+                                    })
+                                    .into_json(),
+                                );
                             }
-                            Err(e) => Message::Buffer(Buffer::Error {
-                                path,
-                                error: e.to_string(),
-                            }),
+                            Err(e) => {
+                                Message::Buffer(Buffer::Error {
+                                    path,
+                                    error: e.to_string(),
+                                });
+                            }
                         },
                         false => match fs::read_to_string(&path) {
-                            Ok(buff) => Message::Buffer(Buffer::Dig {
-                                path,
-                                buffer: Payload::File(buff),
-                            }),
-                            Err(e) => Message::Buffer(Buffer::Error {
-                                path,
-                                error: e.to_string(),
-                            }),
+                            Ok(buff) => {
+                                Message::Buffer(Buffer::Dig {
+                                    path,
+                                    buffer: Payload::File(buff),
+                                });
+                            }
+                            Err(e) => {
+                                Message::Buffer(Buffer::Error {
+                                    path,
+                                    error: e.to_string(),
+                                });
+                            }
                         },
                     },
-                    Err(e) => Message::Buffer(Buffer::Error {
-                        path,
-                        error: e.to_string(),
-                    }),
+                    Err(e) => {
+                        Message::Buffer(Buffer::Error {
+                            path,
+                            error: e.to_string(),
+                        });
+                    }
                 };
-                if let Ok(json) = serde_json::to_string(&mesage) {
-                    proxy.send_event(Message::Json(json));
-                }
             }
             Payload::File(buff) => {
                 fs::write(path, buff);
             }
-            Payload::Dir(path_bufs) => {
-                for p in path_bufs {
-                    create_dir(p);
+            Payload::Append(s) => {
+                let file = OpenOptions::new().append(true).create(true).open(path);
+                if let Ok(mut f) = file {
+                    write!(f, "{}", s);
                 }
             }
         },
-        _ => (), // Buffer::Write { buffer, path } => match fs::write(path, buffer) {
-                 //     Ok(_) => {
-                 //         println!("SAVED!")
-                 //     }
-                 //     Err(_) => {
-                 //         println!("FILE PERMISSION ISSUE, PROBABLY!")
-                 //     }
-                 // },
-                 // Buffer::New { path: p, .. } => {
-                 //     let buffer = match read_to_string(&p) {
-                 //         Ok(buff) => Message::Buffer(Buffer::New {
-                 //             buffer: Some(buff),
-                 //             path: p,
-                 //         }),
-                 //         Err(err) => match err.kind() {
-                 //             ErrorKind::NotFound => Message::Buffer(Buffer::New {
-                 //                 buffer: None,
-                 //                 path: p,
-                 //             }),
-                 //             _ => Message::Buffer(Buffer::Error(err.to_string())),
-                 //         },
-                 //     };
-
-                 //     proxy.send_event(buffer.into_json());
-                 // }
-                 // _ => (),
+        _ => (),
     }
 }
 
@@ -440,7 +425,17 @@ impl ApplicationHandler<Message> for App {
                         }
                     }
                 }
-            } // _ => (),
+            }
+            Message::Event(event) => {
+                for (_, context) in &self.sub_context {
+                    context.webview.evaluate_script(&format!(
+                        "if (window.listen) {{
+                    window.listen({});
+                    }}",
+                        serde_json::to_string(&event).unwrap()
+                    ));
+                }
+            }
         }
     }
 }

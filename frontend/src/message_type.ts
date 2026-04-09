@@ -6,42 +6,40 @@ export type Message =
     | {
         tag: "BUFFER", payload:
         | {
-            tag: "NEW", payload: {
+            tag: "DIG", payload:
+            | {
                 path: string,
-                buffer: string | null
-            }
-        }
-        | {
-            tag: "WRITE", payload: {
-                path: string,
-                buffer: string
-            }
-        }
-        | {
-            tag: "ERROR", payload: string
-        }
-        | {
-            tag: "EDIT", payload: {
-                text: string,
-                path: string,
-                line: Position,
-                number: Position
-            }
-        }
-    }
-    | {
-        tag: "PANE", payload: {
-            tag: "WANT", payload: {
-                from: string,
-                request:
+                buffer:
                 | {
-
+                    tag: "EMPTY"
+                }
+                | {
+                    tag: "FILE", payload: string
+                }
+                | {
+                    tag: "DIR"
                 }
             }
         }
     }
     | {
-        tag: "RUST", payload: string
+        tag: "PANE", payload:
+        | {
+            tag: "WANT", payload: {
+                from: string,
+                request: Want
+            }
+
+        }
+        | {
+            tag: "SEND", payload: {
+                from: string,
+                response: Want
+            }
+        }
+    }
+    | {
+        tag: "RUST", payload: Message
     }
 export type Want =
     | {
