@@ -8,7 +8,7 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     env,
-    fs::{self, File, OpenOptions, read},
+    fs::{self, OpenOptions, read},
     io::Write,
     path::PathBuf,
     sync::mpsc::{self, Sender},
@@ -32,6 +32,8 @@ const HEAD: &'static str = "scod";
 fn protocol(_url: &str, req: Request<Vec<u8>>) -> Response<Cow<'static, [u8]>> {
     let uri = req.uri();
     let exe = env::current_exe().unwrap();
+    // let body = req.body();
+    // let body = req.into_body();
     let mut path = PathBuf::from(exe.parent().unwrap());
     let res = match uri.path() {
         "/" => {

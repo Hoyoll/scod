@@ -1,221 +1,75 @@
-/// Freeze! this shit is freezed. And will not be updated more than this!
-/// Freeze my ass...
-import type { editor } from "monaco-editor"
-
 export type Message =
-    | {
-        tag: "BUFFER", payload:
-        | {
-            tag: "DIG", payload:
-            | {
-                path: string,
-                buffer:
-                | {
-                    tag: "EMPTY"
-                }
-                | {
-                    tag: "FILE", payload: string
-                }
-                | {
-                    tag: "DIR"
-                }
-            }
-        }
-    }
-    | {
-        tag: "PANE", payload:
-        | {
-            tag: "WANT", payload: {
-                from: string,
-                request: Want
-            }
+    | { tag: "BUFFER"; payload: Buffer }
+    | { tag: "PANE"; payload: Pane }
+    | { tag: "EDITOR"; payload: Editor }
+    | { tag: "EVENT"; payload: Event }
+    | { tag: "JSON"; payload: string };
 
-        }
-        | {
-            tag: "SEND", payload: {
-                from: string,
-                response: Want
-            }
-        }
-    }
-    | {
-        tag: "RUST", payload: Message
-    }
+export type Event =
+    | { tag: "BUFFERCREATED"; payload: string }
+    | { tag: "BUFFERSAVED"; payload: string }
+    | { tag: "BUFFERCLOSED"; payload: string }
+    | { tag: "EDITORREADY" }
+    | { tag: "EDITORCLOSE" }
+    | { tag: "CUSTOM"; payload: string };
+
+export type Editor =
+    | "FOCUS"
+    | "MAXIMIZE"
+    | "FULLSCREEN"
+
+export type Pane =
+    | { tag: "OPEN"; payload: { to: string } }
+    | { tag: "MISC"; payload: { to: string; action: Action } }
+    | { tag: "SEND"; payload: { to: string; response: Want } }
+    | { tag: "WANT"; payload: { from: string; request: Want } };
+
 export type Want =
-    | {
-        tag: "CUSTOM", payload: string
-    }
-    | {
-        tag: "BUFFER",
-    }
+    | { tag: "CUSTOM"; payload: string }
+    | { tag: "BUFFER"; payload: WBuffer };
 
-export type Position = {
-    start: number,
-    end: number
-}
+export type WBuffer =
+    | {
+        tag: "PEEK";
+        text?: string | null;
+        path: string;
+        line: Position<number>;
+        column: Position<number>;
+    }
+    | { tag: "COPY"; path: string; buffer?: string | null }
+    | {
+        tag: "EDIT";
+        text: string;
+        path: string;
+        line: Position<number>;
+        column: Position<number>;
+    };
 
+export type Action =
+    | { tag: "FOCUS" }
+    | { tag: "HIDE" }
+    | { tag: "CLOSE" }
+    | { tag: "ZOOMIN" }
+    | { tag: "ZOOMOUT" }
+    | { tag: "MAXIMIZE" }
+    | { tag: "RESIZE"; payload: { width: number; height: number } }
+    | { tag: "REPOSITION"; payload: { x: number; y: number } };
 
-export type WindowP = "READY" | "ZOOMIN" | "ZOOMOUT" | "CLOSE"
+export type Buffer =
+    | { tag: "DIG"; payload: { path: string; buffer: Payload } }
+    | { tag: "ERROR"; payload: { path: string; error: string } };
 
-export type PortP =
-    | {
-        tag: "SPIN", payload: {
-            key: string
-        }
-    }
-    | {
-        tag: "SEND", payload: {
-            key: string,
-            data: any
-        }
-    }
-    | {
-        tag: "WIPE", payload: {
-            key: string
-        }
-    }
+export type Payload =
+    | { tag: "EMPTY" }
+    | { tag: "FILE"; payload: string }
+    | { tag: "APPEND"; payload: string };
 
-export type ModuleP =
-    | {
-        tag: "LOAD", payload: {
-            key: string
-        }
-    }
-    | {
-        tag: "KILL", payload: {
-            key: string
-        }
-    }
-    | {
-        tag: "CALL", payload: {
-            key: string,
-            data: string
-        }
-    }
-
-export type BufferP =
-    | {
-        tag: "NEW", payload: {
-            buffer: string
-            path: string,
-            ext: string
-        }
-    }
-    | {
-        tag: "EDIT", payload: {
-            text: string,
-            path: string,
-            /// IF you give it 0! it will default the LAST possible number of said line/column
-            line: {
-                start: number,
-                end: number
-            },
-            column: {
-                start: number,
-                end: number
-            }
-        }
-    }
-    | {
-        tag: "WRITE", payload: {
-            buffer: string,
-            path: string
-        }
-    }
-    | {
-        tag: "OPEN", payload: string
-    }
-    | {
-        tag: "STATUS", payload: {
-            tag: "OK" | "ERR", payload: string
-        }
-    }
-    | {
-        tag: "FOCUS"
-    }
-    | {
-        tag: "CLOSE"
-    }
-    | {
-        tag: "SAVE", payload:
-        | {
-            for: "CURRENT"
-        }
-        | {
-            for: "PATH", path: string
-        }
-    }
-
-export type BufferPeek = {
-    path: string,
-    value: string
-}
-
-export type CursorP =
-    | {
-        /// shifting it around for n 
-        tag: "MOVE", payload: {
-            line: number
-            column: number
-        }
-    }
-    | {
-        /// moving around, jumping to n
-        tag: "JUMP", payload: {
-            line: number,
-            column: number
-        }
-    }
-    | {
-        tag: "SELECT", payload: {
-            line: {
-                start: number,
-                end: number
-            },
-            column: {
-                start: number,
-                end: number
-            }
-        }
-    }
-    | {
-        /// it will just assume you want to insert in the cursor position
-        tag: "INSERT", payload: string
-    }
-    | {
-        tag: "CHANGED", payload: {
-            position: {
-                column: number,
-                line: number
-            }
-        }
-    }
-
-// export type Message =
-//     | {
-//         tag: "WINDOW", payload: WindowP
-
-//     }
-//     /// routed for local stuff
-//     | {
-//         tag: "PORT", payload: PortP
-//     }
-//     /// routed for backend stuff
-//     | {
-//         tag: "MODULE", payload: ModuleP
-//     }
-//     | {
-//         tag: "BUFFER", payload: BufferP
-//     }
-//     | {
-//         tag: "CURSOR", payload: CursorP
-//     }
-//     | {
-//         tag: "COMMAND", payload: string,
-//     }
-//     | {
-//         tag: "ALIAS", payload: string
-//     }
+export interface Position<T> {
+    start: T;
+    end: T;
+}/// Freeze! this shit is freezed. And will not be updated more than this!
+/// Freeze my ass...
+import type { editor } from "monaco-editor";
 
 export type Channel = (message: Message) => void
 
