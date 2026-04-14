@@ -12,5 +12,5 @@ npm run build --prefix "$TARGET_DIR"
 
 cp -a "$DIST" "$OUTPUT_DIR"
 
-echo "✅ Build complete! Bundle copied to $OUTPUT_DIR"
+echo "Build complete! Bundle copied to $OUTPUT_DIR"
 

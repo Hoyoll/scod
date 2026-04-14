@@ -24,12 +24,12 @@ impl Message {
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
 pub enum Event {
-    BufferCreated(PathBuf),
-    BufferSaved(PathBuf),
-    BufferClosed(PathBuf),
+    BufferCreated(String),
+    BufferSaved(String),
+    BufferClosed(String),
     EditorReady,
     EditorClose,
-    Custom(String),
+    // Custom(String),
 }
 
 #[derive(Deserialize, Serialize)]
@@ -43,50 +43,26 @@ pub enum Editor {
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
 pub enum Pane {
-    Open {
-        to: String,
-    },
-    Misc {
-        to: String,
-        action: Action,
-    },
-    Send {
-        to: String,
-        response: Want,
-    },
-    /// So you want to send "empty" Want which denode that it's a request
-    /// and you will eventually received a "filled" Want
-    Want {
-        from: String,
-        request: Want,
-    },
+    Open { to: String },
+    Misc { to: String, action: Action },
+    Send { to: String, response: Want },
+    Want { from: String, request: Want },
 }
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
 pub enum Want {
-    Custom(String),
-    Buffer(WBuffer),
+    Custom(Container<String, String>),
+    Peek(Container<BuffPoint, Option<String>>),
+    Copy(Container<String, String>),
+    Edit(Container<(String, BuffPoint), Result<(), String>>),
 }
 
 #[derive(Deserialize, Serialize)]
-pub enum WBuffer {
-    Peek {
-        text: Option<String>,
-        path: String,
-        line: Position<i32>,
-        column: Position<i32>,
-    },
-    Copy {
-        path: String,
-        buffer: Option<String>,
-    },
-    Edit {
-        text: String,
-        path: String,
-        line: Position<i32>,
-        column: Position<i32>,
-    },
+pub struct BuffPoint {
+    path: String,
+    line: Position<i32>,
+    column: Position<i32>,
 }
 
 #[derive(Deserialize, Serialize)]

@@ -392,17 +392,9 @@ impl ApplicationHandler<Message> for App {
                         });
                     }
                 }
-                Pane::Want { from, request } => match request {
-                    Want::Custom(_) => {
-                        self.proxy.send_event(Message::Pane(Pane::Send {
-                            to: from,
-                            response: request,
-                        }));
-                    }
-                    Want::Buffer(_) => {
-                        self.simple_send_to_js(Message::Pane(Pane::Want { from, request }));
-                    }
-                },
+                Pane::Want { .. } => {
+                    self.simple_send_to_js(Message::Pane(pane));
+                }
             },
             Message::Json(json) => {
                 if let Some(context) = &mut self.context {
