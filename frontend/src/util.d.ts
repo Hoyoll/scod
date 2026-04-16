@@ -1,7 +1,7 @@
 import type { Message } from "./message_type";
 
 interface Ipc {
-    postMessage(message: string): void
+    postMessage(message: Message): void
 }
 
 interface Editor {

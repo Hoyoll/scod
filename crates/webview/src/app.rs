@@ -392,9 +392,6 @@ impl ApplicationHandler<Message> for App {
                         });
                     }
                 }
-                Pane::Want { .. } => {
-                    self.simple_send_to_js(Message::Pane(pane));
-                }
             },
             Message::Json(json) => {
                 if let Some(context) = &mut self.context {

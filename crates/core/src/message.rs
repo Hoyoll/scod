@@ -46,7 +46,7 @@ pub enum Pane {
     Open { to: String },
     Misc { to: String, action: Action },
     Send { to: String, response: Want },
-    Want { from: String, request: Want },
+    // Want { from: String, request: Want },
 }
 
 #[derive(Deserialize, Serialize)]
@@ -66,6 +66,7 @@ pub struct BuffPoint {
 }
 
 #[derive(Deserialize, Serialize)]
+#[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
 pub enum Container<A, B> {
     Request(A),
     Response(B),
