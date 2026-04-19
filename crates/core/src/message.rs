@@ -1,5 +1,4 @@
 use core::str;
-use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
@@ -12,12 +11,12 @@ pub enum Message {
     Event(Event),
     /// Like the name suggest, it will make it cross the rust <-> js boundary,
     /// Like Pane::Send but for the editor
-    Json(String),
+    Json(serde_json::Value),
 }
 
 impl Message {
     pub fn into_json(&self) -> Message {
-        Message::Json(serde_json::to_string(self).unwrap())
+        Message::Json(serde_json::to_value(self).unwrap())
     }
 }
 
@@ -52,7 +51,7 @@ pub enum Pane {
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "tag", content = "payload", rename_all = "UPPERCASE")]
 pub enum Want {
-    Custom(Container<String, String>),
+    Custom(Container<serde_json::Value, serde_json::Value>),
     Peek(Container<BuffPoint, Option<String>>),
     Copy(Container<String, String>),
     Edit(Container<(String, BuffPoint), Result<(), String>>),

@@ -1,25 +1,16 @@
-import { editor, Uri } from "monaco-editor"
+import { editor, Uri } from "monaco-editor";
 
-type EBuffer = Map<string, {
-    view_state: null | editor.ICodeEditorViewState,
-    watched: boolean
-}>
+type EBuffer = Map<string, null | editor.ICodeEditorViewState>
 
 export class ABuffer {
     private buffer: EBuffer = new Map()
     public register(key: string, value: string, ext: string) {
         editor.createModel(value, ext, Uri.file(key))
-        this.buffer.set(key, {
-            view_state: null,
-            watched: false
-        })
+        this.buffer.set(key, null)
     }
 
     public set_vs(key: string, view_state: null | editor.ICodeEditorViewState) {
-        let b = this.buffer.get(key)
-        if (b) {
-            b.view_state = view_state
-        }
+        this.buffer.set(key, view_state)
     }
 
     public delete(key: string) {
@@ -45,7 +36,7 @@ export class ABuffer {
             let model = editor.getModel(Uri.file(key))!;
             closure.ok({
                 model: model,
-                view_state: ab.view_state
+                view_state: ab
             })
         } else {
             closure.err()

@@ -174,6 +174,7 @@ export class Editor {
                             ok: (model) => {
                                 let mo = this.editor.getModel()
                                 if (mo) {
+                                    // Uri.file(".");
                                     let [_, ...rest] = mo.uri.path
                                     this.buffer.set_vs(rest.join(""), this.editor.saveViewState())
                                 }

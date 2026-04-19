@@ -1,7 +1,7 @@
 use scod_core::{
     alias::AList,
     client::Client,
-    message::{Action, Buffer, Editor, Message, Pane, Payload, Want},
+    message::{Action, Buffer, Editor, Event, Message, Pane, Payload, Want},
 };
 use serde_json::from_str;
 use std::{
@@ -135,6 +135,9 @@ fn mime_from_extension(ext: &str) -> &'static str {
 }
 
 fn buffer_handler(proxy: &EventLoopProxy<Message>, buffer: Buffer) {
+    let send = |message: Message| {
+        proxy.send_event(message.into_json());
+    };
     match buffer {
         Buffer::Dig { path, buffer } => match buffer {
             Payload::Empty => {
@@ -147,46 +150,45 @@ fn buffer_handler(proxy: &EventLoopProxy<Message>, buffer: Buffer) {
                                     p.push_str(dir.unwrap().path().to_str().unwrap());
                                     p.push_str("\n");
                                 }
-                                proxy.send_event(
-                                    Message::Buffer(Buffer::Dig {
-                                        path,
-                                        buffer: Payload::File(p),
-                                    })
-                                    .into_json(),
-                                );
-                            }
-                            Err(e) => {
-                                Message::Buffer(Buffer::Error {
+                                send(Message::Buffer(Buffer::Dig {
                                     path,
-                                    error: e.to_string(),
-                                });
+                                    buffer: Payload::File(p),
+                                }));
                             }
+                            Err(e) => send(Message::Buffer(Buffer::Error {
+                                path,
+                                error: e.to_string(),
+                            })),
                         },
                         false => match fs::read_to_string(&path) {
-                            Ok(buff) => {
-                                Message::Buffer(Buffer::Dig {
-                                    path,
-                                    buffer: Payload::File(buff),
-                                });
-                            }
+                            Ok(buff) => send(Message::Buffer(Buffer::Dig {
+                                path,
+                                buffer: Payload::File(buff),
+                            })),
                             Err(e) => {
-                                Message::Buffer(Buffer::Error {
-                                    path,
-                                    error: e.to_string(),
-                                });
+                                let message = match e.kind() {
+                                    std::io::ErrorKind::NotFound => Message::Buffer(Buffer::Dig {
+                                        path,
+                                        buffer: Payload::Empty,
+                                    }),
+                                    _ => Message::Buffer(Buffer::Error {
+                                        path,
+                                        error: e.to_string(),
+                                    }),
+                                };
+                                send(message);
                             }
                         },
                     },
-                    Err(e) => {
-                        Message::Buffer(Buffer::Error {
-                            path,
-                            error: e.to_string(),
-                        });
-                    }
+                    Err(e) => send(Message::Buffer(Buffer::Error {
+                        path,
+                        error: e.to_string(),
+                    })),
                 };
             }
             Payload::File(buff) => {
-                fs::write(path, buff);
+                fs::write(&path, buff);
+                proxy.send_event(Message::Event(Event::BufferSaved(path)));
             }
             Payload::Append(s) => {
                 let file = OpenOptions::new().append(true).create(true).open(path);
