@@ -328,7 +328,8 @@ impl ApplicationHandler<Message> for App {
                     attr.visible = false;
                     let proxy = self.proxy.clone();
                     let webview_builder = WebViewBuilder::new().with_ipc_handler(move |request| {
-                        from_str(request.body()).map(|msg: Message| proxy.send_event(msg));
+                        from_str(request.body())
+                            .map(|msg: Pane| proxy.send_event(Message::Pane(msg)));
                     });
                     let window = event_loop.create_window(attr).unwrap();
                     let mut root = self.client.mod_list.clone();
