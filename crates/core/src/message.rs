@@ -45,7 +45,7 @@ pub enum Pane {
     Open { to: String },
     Misc { to: String, action: Action },
     Send { to: String, response: Want },
-    // Want { from: String, request: Want },
+    //Want { from: String, request: Want },
 }
 
 #[derive(Deserialize, Serialize)]

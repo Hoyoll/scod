@@ -32,7 +32,7 @@ const HEAD: &'static str = "scod";
 fn protocol(_url: &str, req: Request<Vec<u8>>) -> Response<Cow<'static, [u8]>> {
     let uri = req.uri();
     let exe = env::current_exe().unwrap();
-    // let body = req.body();
+    //let body = req.body();
     // let body = req.into_body();
     let mut path = PathBuf::from(exe.parent().unwrap());
     let res = match uri.path() {
@@ -329,7 +329,7 @@ impl ApplicationHandler<Message> for App {
                     let proxy = self.proxy.clone();
                     let webview_builder = WebViewBuilder::new().with_ipc_handler(move |request| {
                         from_str(request.body())
-                            .map(|msg: Pane| proxy.send_event(Message::Pane(msg)));
+                            .map(|msg: Message| proxy.send_event(msg));
                     });
                     let window = event_loop.create_window(attr).unwrap();
                     let mut root = self.client.mod_list.clone();
@@ -394,7 +394,7 @@ impl ApplicationHandler<Message> for App {
                                 .evaluate_script(&format!("window.receive({});", json));
                         });
                     }
-                }
+                },
             },
             Message::Json(json) => {
                 if let Some(context) = &mut self.context {

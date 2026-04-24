@@ -9,6 +9,7 @@ interface Receiver<T> {
 }
 
 type Channel = (message: Message) => void
+type LChannel = () => void
 
 class Scod implements Receiver<Message> {
     private json_handler = new HJson()
@@ -52,6 +53,10 @@ class Scod implements Receiver<Message> {
                 this.event_handler.receive(message.payload)
                 break
         }
+    }
+
+    local_channel() {
+    	
     }
 }
 
